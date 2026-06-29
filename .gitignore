@@ -1,0 +1,28 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode / macOS
+DerivedData/
+*.xcworkspace/
+*.xcodeproj/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# Local Google OAuth secrets and generated state
+credentials*.json
+token*.json
+report_upload*.json
+*.log
+
+# Generic local secrets
+.env
+.env.*
+*.pem
+*.p12
+*.key
+
+# Keep sanitized examples versioned
+!*.example.json
