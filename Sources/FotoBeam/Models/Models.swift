@@ -92,7 +92,7 @@ struct AlbumRow: Identifiable {
     let path: URL
     let originalName: String
     var albumName: String
-    let files: [URL]
+    var files: [URL]
     let dateRange: String
     var isSelected = true
     var isCompleted = false
@@ -107,6 +107,54 @@ struct FilePreviewItem: Identifiable {
     let reason: String
     let isManuallySelected: Bool
     let qualitySummary: String
+}
+
+enum RenameDateSource: String, Codable {
+    case exifDateTimeOriginal = "EXIF DateTimeOriginal"
+    case imageMetadata = "Metadata immagine"
+    case fileName = "Nome file"
+    case fileCreationDate = "Data creazione file"
+    case fileModificationDate = "Data modifica file"
+    case unavailable = "Data non trovata"
+}
+
+enum RenamePlanStatus: String, Codable {
+    case ready = "OK"
+    case unchanged = "Nome già corretto"
+    case dateUnavailable = "Data non trovata"
+    case destinationExists = "Nome già esistente"
+}
+
+struct RenamePlanItem: Identifiable, Codable {
+    var id: String { originalPath }
+    let originalPath: String
+    let proposedPath: String
+    let originalName: String
+    let proposedName: String
+    let date: Date?
+    let dateSource: RenameDateSource
+    let status: RenamePlanStatus
+
+    var canApply: Bool {
+        status == .ready || status == .unchanged
+    }
+}
+
+struct RenameHistory: Codable {
+    var renamedAt: Date
+    var items: [RenameHistoryItem]
+}
+
+struct RenameHistoryItem: Codable {
+    let oldPath: String
+    let newPath: String
+    let dateSource: RenameDateSource
+
+    enum CodingKeys: String, CodingKey {
+        case oldPath = "old_path"
+        case newPath = "new_path"
+        case dateSource = "date_source"
+    }
 }
 
 struct GoogleCredentials: Decodable {

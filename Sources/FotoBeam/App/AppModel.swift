@@ -14,9 +14,11 @@ final class AppModel: ObservableObject {
     @Published var previewAlbum: AlbumRow?
     @Published var fileSelections: [String: Bool] = [:]
     @Published var qualityAnalyses: [UUID: QualityAnalysis] = [:]
+    @Published var renameBeforeUpload: [UUID: Bool] = [:]
 
     private let scanner = AlbumScanner()
     private let qualityAnalyzer = QualityAnalyzer()
+    private let renamePlanner = RenamePlanner()
     private var report = UploadReportStore.load()
 
     func showFilePreview(for album: AlbumRow) {
@@ -41,12 +43,59 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func shouldRenameBeforeUpload(_ album: AlbumRow) -> Bool {
+        renameBeforeUpload[album.id] ?? false
+    }
+
+    func setRenameBeforeUpload(_ album: AlbumRow, enabled: Bool) {
+        renameBeforeUpload[album.id] = enabled
+    }
+
     func selectedUploadFiles(for album: AlbumRow) -> [URL] {
         let title = album.albumName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? album.originalName : album.albumName
         let albumReport = report.albums[title] ?? report.albums[album.originalName]
         return album.files.filter { file in
             isFileSelected(file) && albumReport?.files[file.path]?.status != "SUCCESS"
         }
+    }
+
+    func currentAlbum(for album: AlbumRow) -> AlbumRow {
+        albums.first { $0.id == album.id } ?? album
+    }
+
+    func renamePlan(for album: AlbumRow) -> [RenamePlanItem] {
+        renamePlanner.makePlan(files: selectedUploadFiles(for: currentAlbum(for: album)))
+    }
+
+    func applyRenamePlan(_ plan: [RenamePlanItem], to album: AlbumRow) throws {
+        let history = try renamePlanner.apply(plan: plan)
+        guard !history.isEmpty else {
+            log("Nessun file rinominato.")
+            return
+        }
+
+        let pathMap = Dictionary(uniqueKeysWithValues: history.map { ($0.oldPath, $0.newPath) })
+        if let albumIndex = albums.firstIndex(where: { $0.id == album.id }) {
+            albums[albumIndex].files = albums[albumIndex].files.map { file in
+                if let newPath = pathMap[file.path] {
+                    return URL(fileURLWithPath: newPath)
+                }
+                return file
+            }
+            qualityAnalyses[album.id] = qualityAnalyzer.analyze(files: albums[albumIndex].files)
+        }
+
+        for item in history {
+            let selected = fileSelections[item.oldPath] ?? true
+            fileSelections.removeValue(forKey: item.oldPath)
+            fileSelections[item.newPath] = selected
+        }
+
+        if let previewAlbum, previewAlbum.id == album.id {
+            self.previewAlbum = albums.first { $0.id == album.id }
+        }
+
+        log("\(history.count) file rinominati. Storico salvato in \(AppConfig.renameHistoryFileName).")
     }
 
     func filePreviewItems(for album: AlbumRow) -> [FilePreviewItem] {
@@ -119,6 +168,7 @@ final class AppModel: ObservableObject {
                 self.fileSelections = Dictionary(uniqueKeysWithValues: scanned.flatMap { album in
                     album.files.map { ($0.path, true) }
                 })
+                self.renameBeforeUpload = Dictionary(uniqueKeysWithValues: scanned.map { ($0.id, false) })
                 self.qualityAnalyses = analyses
                 self.isScanning = false
                 self.isWorking = false
@@ -148,8 +198,20 @@ final class AppModel: ObservableObject {
             var completed = 0
             var failed = 0
 
-            for (albumIndex, album) in selected.enumerated() {
+            for (albumIndex, selectedAlbum) in selected.enumerated() {
+                var album = currentAlbum(for: selectedAlbum)
                 let title = album.albumName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? album.originalName : album.albumName
+                if shouldRenameBeforeUpload(album) {
+                    let plan = renamePlan(for: album)
+                    let applicable = plan.filter { $0.status == .ready }
+                    if !applicable.isEmpty {
+                        log("Rinomina pre-upload per album '\(title)' (\(applicable.count) file)...")
+                        try applyRenamePlan(plan, to: album)
+                        album = currentAlbum(for: album)
+                    } else {
+                        log("Rinomina pre-upload per album '\(title)': nessun file da rinominare.")
+                    }
+                }
                 let filesToUpload = selectedUploadFiles(for: album)
                 guard !filesToUpload.isEmpty else {
                     log("Album '\(title)' saltato: nessun file selezionato per l'upload.")

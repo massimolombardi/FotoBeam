@@ -14,6 +14,7 @@ L'idea è semplice: scegli una cartella principale, FotoBeam trova le sottocarte
 - Confronto affiancato dei gruppi di foto duplicate o simili.
 - Segnalazione di foto da valutare con motivi espliciti, come molto scura, sovraesposta, bassa risoluzione o gruppo simile numeroso.
 - Dimensione miniature regolabile durante la revisione.
+- Anteprima e rinomina esplicita dei file selezionati con formato data/ora dello scatto.
 - Upload su Google Photos tramite OAuth.
 - Report locale per riprendere un upload interrotto e saltare file già completati.
 - Log e barra di avanzamento durante l'esecuzione.
@@ -82,6 +83,32 @@ Gli avvisi non modificano mai automaticamente la selezione. Ogni file resta sott
 
 Le scelte sono non distruttive: FotoBeam non elimina, sposta o rinomina file locali. I file non selezionati vengono semplicemente esclusi da quell'upload.
 
+## Rinomina File
+
+Dalla schermata `Revisiona` puoi aprire `Anteprima rinomina` per vedere i nuovi nomi proposti per i soli file selezionati per l'upload.
+
+Puoi anche attivare il flag `Rinomina prima dell'upload`: se abilitato, FotoBeam applica la rinomina ai file selezionati subito prima di caricarli. Se il flag è spento, i file vengono caricati con il nome corrente.
+
+Il formato predefinito è corto, ordinabile e conserva tipo media, data e ora nel nome:
+
+```text
+IMG_yyyy-MM-dd_HH-mm-ss_001.ext
+VID_yyyy-MM-dd_HH-mm-ss_001.ext
+```
+
+Esempio:
+
+```text
+IMG_2024-08-17_15-42-09_001.heic
+VID_2024-08-17_15-42-09_001.mov
+```
+
+FotoBeam usa, in ordine, data EXIF dello scatto, metadata immagine, data già presente nel nome `IMG/VID_yyyy-MM-dd_HH-mm-ss_001`, data creazione file e data modifica file. Il nome originale non viene appeso al nuovo nome; viene salvato solo nello storico locale.
+
+Se i metadata vengono persi, data e ora restano ricostruibili dal nome generato.
+
+La rinomina non parte mai senza una scelta esplicita: puoi applicarla dalla preview con `Applica rinomina`, oppure abilitarla con il flag `Rinomina prima dell'upload`. Lo storico viene salvato in `rename_history.json`, escluso da git perché contiene percorsi locali e nomi file personali.
+
 ## File Locali
 
 Questi file sono generati o usati localmente e sono esclusi da git:
@@ -89,6 +116,7 @@ Questi file sono generati o usati localmente e sono esclusi da git:
 - `credentials.json`: credenziali OAuth Google.
 - `token_swift.json`: token OAuth salvato dopo l'autenticazione.
 - `report_upload_swift.json`: stato degli upload, album, file già processati e percorsi locali.
+- `rename_history.json`: storico delle rinomine applicate, con vecchi e nuovi percorsi locali.
 - `.build/`: artefatti di build Swift Package Manager.
 
 Nel repository sono presenti solo esempi sanificati:
@@ -142,6 +170,8 @@ Se alcuni file vengono saltati, apri la vista `File` dell'album e controlla il m
 │       │   ├── GoogleAuth.swift
 │       │   ├── GooglePhotosClient.swift
 │       │   ├── QualityAnalyzer.swift
+│       │   ├── RenamePlanner.swift
+│       │   ├── ThumbnailLoader.swift
 │       │   └── UploadReportStore.swift
 │       ├── Support/
 │       │   ├── AppConstants.swift

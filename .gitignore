@@ -15,6 +15,7 @@ xcuserdata/
 credentials*.json
 token*.json
 report_upload*.json
+rename_history*.json
 *.log
 
 # Generic local secrets

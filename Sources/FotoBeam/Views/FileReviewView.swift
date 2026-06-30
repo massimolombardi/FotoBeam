@@ -8,9 +8,16 @@ struct FileReviewView: View {
     let album: AlbumRow
     @State private var mode: ReviewMode = .duplicates
     @State private var thumbnailSize = 220.0
+    @State private var renamePlan: [RenamePlanItem] = []
+    @State private var isShowingRenamePreview = false
+    @State private var renameError: String?
+
+    private var currentAlbum: AlbumRow {
+        model.currentAlbum(for: album)
+    }
 
     private var items: [FilePreviewItem] {
-        model.filePreviewItems(for: album)
+        model.filePreviewItems(for: currentAlbum)
     }
 
     private var uploadCount: Int {
@@ -26,7 +33,7 @@ struct FileReviewView: View {
     }
 
     private var lowQualityFiles: [URL] {
-        album.files.filter { file in
+        currentAlbum.files.filter { file in
             let issues = quality.files[file.path]?.issues ?? []
             return issues.contains(.blurry)
                 || issues.contains(.tooDark)
@@ -39,7 +46,7 @@ struct FileReviewView: View {
     }
 
     private var reviewNeededFiles: [URL] {
-        album.files.filter { file in
+        currentAlbum.files.filter { file in
             !(quality.files[file.path]?.issues.isEmpty ?? true)
         }
     }
@@ -63,7 +70,7 @@ struct FileReviewView: View {
                 let context = reviewContext
                 switch mode {
                 case .all:
-                    fileGrid(files: album.files, context: context, emptyTitle: "Nessun file nell'album")
+                    fileGrid(files: currentAlbum.files, context: context, emptyTitle: "Nessun file nell'album")
                 case .duplicates:
                     groupList(
                         groups: duplicateGroups,
@@ -100,6 +107,11 @@ struct FileReviewView: View {
 
             HStack {
                 Spacer()
+                if let renameError {
+                    Text(renameError)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
                 Button("Chiudi") {
                     dismiss()
                 }
@@ -108,14 +120,25 @@ struct FileReviewView: View {
         }
         .padding(16)
         .frame(minWidth: 1100, minHeight: 760)
+        .sheet(isPresented: $isShowingRenamePreview) {
+            RenamePreviewView(
+                plan: renamePlan,
+                onCancel: {
+                    isShowingRenamePreview = false
+                },
+                onApply: {
+                    applyRenamePlan()
+                }
+            )
+        }
     }
 
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(album.albumName)
+                Text(currentAlbum.albumName)
                     .font(.title3.bold())
-                Text(album.path.path)
+                Text(currentAlbum.path.path)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -152,24 +175,38 @@ struct FileReviewView: View {
     private var actionBar: some View {
         HStack(spacing: 8) {
             Button {
-                model.setFiles(album.files, selected: true)
+                model.setFiles(currentAlbum.files, selected: true)
             } label: {
                 Label("Carica tutte", systemImage: "checkmark.circle")
             }
 
             Button {
-                model.setFiles(album.files, selected: false)
+                model.setFiles(currentAlbum.files, selected: false)
             } label: {
                 Label("Non caricare nessuna", systemImage: "xmark.circle")
             }
 
             Button {
-                NSWorkspace.shared.open(album.path)
+                NSWorkspace.shared.open(currentAlbum.path)
             } label: {
                 Label("Apri cartella", systemImage: "folder")
             }
 
+            Button {
+                showRenamePreview()
+            } label: {
+                Label("Anteprima rinomina", systemImage: "textformat")
+            }
+            .disabled(model.selectedUploadFiles(for: currentAlbum).isEmpty)
+
             Spacer()
+
+            Toggle("Rinomina prima dell'upload", isOn: Binding(
+                get: { model.shouldRenameBeforeUpload(currentAlbum) },
+                set: { model.setRenameBeforeUpload(currentAlbum, enabled: $0) }
+            ))
+            .toggleStyle(.checkbox)
+            .help("Se attivo, FotoBeam applica la rinomina ai file selezionati subito prima di caricarli.")
 
             HStack(spacing: 8) {
                 Image(systemName: "photo")
@@ -254,8 +291,8 @@ struct FileReviewView: View {
     }
 
     private func groups(from paths: [[String]]) -> [[URL]] {
-        let filesByPath = Dictionary(uniqueKeysWithValues: album.files.map { ($0.path, $0) })
-        let order = Dictionary(uniqueKeysWithValues: album.files.enumerated().map { ($0.element.path, $0.offset) })
+        let filesByPath = Dictionary(uniqueKeysWithValues: currentAlbum.files.map { ($0.path, $0) })
+        let order = Dictionary(uniqueKeysWithValues: currentAlbum.files.enumerated().map { ($0.element.path, $0.offset) })
 
         return paths
             .map { group in
@@ -263,6 +300,117 @@ struct FileReviewView: View {
                     .sorted { (order[$0.path] ?? Int.max) < (order[$1.path] ?? Int.max) }
             }
             .filter { $0.count > 1 }
+    }
+
+    private func showRenamePreview() {
+        renameError = nil
+        renamePlan = model.renamePlan(for: currentAlbum)
+        isShowingRenamePreview = true
+    }
+
+    private func applyRenamePlan() {
+        do {
+            try model.applyRenamePlan(renamePlan, to: currentAlbum)
+            renameError = nil
+            isShowingRenamePreview = false
+        } catch {
+            renameError = error.localizedDescription
+        }
+    }
+}
+
+struct RenamePreviewView: View {
+    let plan: [RenamePlanItem]
+    let onCancel: () -> Void
+    let onApply: () -> Void
+
+    private var applicableCount: Int {
+        plan.filter { $0.status == .ready }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Anteprima rinomina")
+                        .font(.title3.bold())
+                    Text("Formato: IMG/VID_yyyy-MM-dd_HH-mm-ss_001.ext. Data e ora restano recuperabili dal nome.")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("\(applicableCount) rinominabili su \(plan.count)")
+                    .foregroundStyle(.secondary)
+            }
+
+            Table(plan) {
+                TableColumn("Nome attuale") { item in
+                    Text(item.originalName)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .width(min: 180, ideal: 260)
+
+                TableColumn("Nuovo nome") { item in
+                    Text(item.proposedName)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .width(min: 220, ideal: 300)
+
+                TableColumn("Origine data") { item in
+                    Text(item.dateSource.rawValue)
+                }
+                .width(170)
+
+                TableColumn("Stato") { item in
+                    Label(item.status.rawValue, systemImage: icon(for: item.status))
+                        .foregroundStyle(color(for: item.status))
+                }
+                .width(180)
+            }
+
+            HStack {
+                Text("Nessun file viene rinominato finché non premi Applica rinomina.")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Annulla") {
+                    onCancel()
+                }
+                Button {
+                    onApply()
+                } label: {
+                    Label("Applica rinomina", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(applicableCount == 0)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 900, minHeight: 560)
+    }
+
+    private func icon(for status: RenamePlanStatus) -> String {
+        switch status {
+        case .ready:
+            return "checkmark.circle"
+        case .unchanged:
+            return "equal.circle"
+        case .dateUnavailable:
+            return "calendar.badge.exclamationmark"
+        case .destinationExists:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    private func color(for status: RenamePlanStatus) -> Color {
+        switch status {
+        case .ready:
+            return .green
+        case .unchanged:
+            return .secondary
+        case .dateUnavailable, .destinationExists:
+            return .orange
+        }
     }
 }
 
