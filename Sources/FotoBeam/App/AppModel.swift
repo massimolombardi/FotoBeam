@@ -49,28 +49,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func filteredFiles(for album: AlbumRow, filter: ReviewFilter) -> [URL] {
-        let analysis = qualityAnalyses[album.id]
-        return album.files.filter { file in
-            let info = analysis?.files[file.path]
-            switch filter {
-            case .all:
-                return true
-            case .flagged:
-                return !(info?.flags.isEmpty ?? true)
-            case .duplicates:
-                return info?.exactDuplicateGroup != nil
-            case .similar:
-                return info?.similarGroup != nil
-            case .blurry:
-                if let score = info?.blurScore {
-                    return score < AppConfig.blurScoreThreshold
-                }
-                return false
-            }
-        }
-    }
-
     func filePreviewItems(for album: AlbumRow) -> [FilePreviewItem] {
         let title = album.albumName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? album.originalName : album.albumName
         let albumReport = report.albums[title] ?? report.albums[album.originalName]

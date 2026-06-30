@@ -6,14 +6,11 @@ struct FileReviewView: View {
     @EnvironmentObject private var model: AppModel
 
     let album: AlbumRow
-    @State private var filter: ReviewFilter = .all
+    @State private var mode: ReviewMode = .duplicates
+    @State private var thumbnailSize = 220.0
 
     private var items: [FilePreviewItem] {
         model.filePreviewItems(for: album)
-    }
-
-    private var visibleFiles: [URL] {
-        model.filteredFiles(for: album, filter: filter)
     }
 
     private var uploadCount: Int {
@@ -28,97 +25,57 @@ struct FileReviewView: View {
         model.qualityAnalysis(for: album) ?? QualityAnalysis()
     }
 
+    private var lowQualityFiles: [URL] {
+        album.files.filter { file in
+            if let score = quality.files[file.path]?.blurScore {
+                return score < AppConfig.blurScoreThreshold
+            }
+            return false
+        }
+    }
+
+    private var duplicateGroups: [[URL]] {
+        groups(from: quality.exactDuplicateGroups)
+    }
+
+    private var similarGroups: [[URL]] {
+        groups(from: quality.similarGroups)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(album.albumName)
-                        .font(.title3.bold())
-                    Text(album.path.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(uploadCount) da caricare")
-                        .foregroundStyle(.green)
-                    Text("\(skippedCount) saltati")
-                        .foregroundStyle(.secondary)
-                }
-                .font(.subheadline)
-            }
-
-            HStack(spacing: 8) {
-                Label("\(quality.duplicateCount) duplicati", systemImage: "doc.on.doc")
-                    .foregroundStyle(quality.duplicateCount > 0 ? .orange : .secondary)
-                Label("\(quality.similarCount) simili", systemImage: "rectangle.on.rectangle")
-                    .foregroundStyle(quality.similarCount > 0 ? .orange : .secondary)
-                Label("\(quality.blurryCount) sfocate", systemImage: "eye.slash")
-                    .foregroundStyle(quality.blurryCount > 0 ? .orange : .secondary)
-                Spacer()
-                Picker("Filtro", selection: $filter) {
-                    ForEach(ReviewFilter.allCases) { option in
-                        Text(option.rawValue).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 520)
-            }
-            .font(.subheadline)
-
-            HStack(spacing: 8) {
-                Button {
-                    model.setFiles(album.files, selected: true)
-                } label: {
-                    Label("Carica tutte", systemImage: "checkmark.circle")
-                }
-
-                Button {
-                    model.setFiles(album.files, selected: false)
-                } label: {
-                    Label("Non caricare nessuna", systemImage: "xmark.circle")
-                }
-
-                Button {
-                    NSWorkspace.shared.activateFileViewerSelecting([])
-                    NSWorkspace.shared.open(album.path)
-                } label: {
-                    Label("Apri cartella", systemImage: "folder")
-                }
-
-                Spacer()
-
-                Text("Gli avvisi non cambiano le spunte: decidi tu cosa caricare.")
-                    .foregroundStyle(.secondary)
-            }
+            header
+            qualitySummary
+            actionBar
+            modePicker
 
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
-                    ForEach(visibleFiles, id: \.path) { file in
-                        ReviewFileCard(
-                            file: file,
-                            item: items.first(where: { $0.path == file.path }),
-                            quality: quality.files[file.path],
-                            isSelected: model.isFileSelected(file),
-                            onSelectionChange: { selected in
-                                model.setFile(file, selected: selected)
-                            }
-                        )
-                    }
+                switch mode {
+                case .all:
+                    fileGrid(files: album.files, emptyTitle: "Nessun file nell'album")
+                case .duplicates:
+                    groupList(
+                        groups: duplicateGroups,
+                        title: "Gruppo duplicati",
+                        emptyTitle: "Nessun duplicato esatto",
+                        emptyDescription: "FotoBeam non ha trovato file identici in questo album."
+                    )
+                case .similar:
+                    groupList(
+                        groups: similarGroups,
+                        title: "Gruppo foto simili",
+                        emptyTitle: "Nessuna foto simile",
+                        emptyDescription: "FotoBeam non ha trovato scatti abbastanza simili da raggruppare."
+                    )
+                case .lowQuality:
+                    fileGrid(
+                        files: lowQualityFiles,
+                        emptyTitle: "Nessuna foto di bassa qualità",
+                        emptyDescription: "Non ci sono immagini sotto la soglia di nitidezza."
+                    )
                 }
-                .padding(2)
             }
-            .frame(minHeight: 360)
-
-            if filter != .all && visibleFiles.isEmpty {
-                ContentUnavailableView(
-                    "Nessun file in questo filtro",
-                    systemImage: "checkmark.seal",
-                    description: Text("Puoi tornare a Tutti per vedere l'intero album.")
-                )
-            }
+            .frame(minHeight: 420)
 
             HStack {
                 Spacer()
@@ -129,7 +86,219 @@ struct FileReviewView: View {
             }
         }
         .padding(16)
-        .frame(minWidth: 980, minHeight: 700)
+        .frame(minWidth: 1100, minHeight: 760)
+    }
+
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(album.albumName)
+                    .font(.title3.bold())
+                Text(album.path.path)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(uploadCount) da caricare")
+                    .foregroundStyle(.green)
+                Text("\(skippedCount) saltati")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline)
+        }
+    }
+
+    private var qualitySummary: some View {
+        HStack(spacing: 10) {
+            Label("\(quality.duplicateCount) duplicati", systemImage: "doc.on.doc")
+                .foregroundStyle(quality.duplicateCount > 0 ? .orange : .secondary)
+            Label("\(quality.similarCount) simili", systemImage: "rectangle.on.rectangle")
+                .foregroundStyle(quality.similarCount > 0 ? .orange : .secondary)
+            Label("\(quality.blurryCount) qualità bassa", systemImage: "eye.slash")
+                .foregroundStyle(quality.blurryCount > 0 ? .orange : .secondary)
+            Spacer()
+            Label("Nessuna esclusione automatica", systemImage: "hand.raised")
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline)
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                model.setFiles(album.files, selected: true)
+            } label: {
+                Label("Carica tutte", systemImage: "checkmark.circle")
+            }
+
+            Button {
+                model.setFiles(album.files, selected: false)
+            } label: {
+                Label("Non caricare nessuna", systemImage: "xmark.circle")
+            }
+
+            Button {
+                NSWorkspace.shared.open(album.path)
+            } label: {
+                Label("Apri cartella", systemImage: "folder")
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+                Slider(value: $thumbnailSize, in: 150...360, step: 10)
+                    .frame(width: 180)
+                Image(systemName: "photo.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .help("Dimensione miniature")
+        }
+    }
+
+    private var modePicker: some View {
+        Picker("Vista", selection: $mode) {
+            ForEach(ReviewMode.allCases) { option in
+                Text(option.rawValue).tag(option)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private func groupList(groups: [[URL]], title: String, emptyTitle: String, emptyDescription: String) -> some View {
+        LazyVStack(alignment: .leading, spacing: 18) {
+            if groups.isEmpty {
+                ContentUnavailableView(
+                    emptyTitle,
+                    systemImage: "checkmark.seal",
+                    description: Text(emptyDescription)
+                )
+                .frame(maxWidth: .infinity, minHeight: 360)
+            } else {
+                ForEach(Array(groups.enumerated()), id: \.offset) { index, files in
+                    ComparisonGroupView(
+                        title: "\(title) \(index + 1)",
+                        files: files,
+                        items: itemsByPath,
+                        quality: quality,
+                        thumbnailSize: thumbnailSize,
+                        isSelected: { model.isFileSelected($0) },
+                        setSelected: { model.setFile($0, selected: $1) },
+                        selectAll: { model.setFiles(files, selected: true) },
+                        deselectAll: { model.setFiles(files, selected: false) }
+                    )
+                }
+            }
+        }
+        .padding(2)
+    }
+
+    private func fileGrid(files: [URL], emptyTitle: String, emptyDescription: String = "Non ci sono elementi da mostrare in questa vista.") -> some View {
+        Group {
+            if files.isEmpty {
+                ContentUnavailableView(
+                    emptyTitle,
+                    systemImage: "checkmark.seal",
+                    description: Text(emptyDescription)
+                )
+                .frame(maxWidth: .infinity, minHeight: 360)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: thumbnailSize), spacing: 12)], spacing: 12) {
+                    ForEach(files, id: \.path) { file in
+                        ReviewFileCard(
+                            file: file,
+                            item: itemsByPath[file.path],
+                            quality: quality.files[file.path],
+                            thumbnailSize: thumbnailSize,
+                            isSelected: model.isFileSelected(file),
+                            onSelectionChange: { selected in
+                                model.setFile(file, selected: selected)
+                            }
+                        )
+                    }
+                }
+                .padding(2)
+            }
+        }
+    }
+
+    private var itemsByPath: [String: FilePreviewItem] {
+        Dictionary(uniqueKeysWithValues: items.map { ($0.path, $0) })
+    }
+
+    private func groups(from paths: [[String]]) -> [[URL]] {
+        let filesByPath = Dictionary(uniqueKeysWithValues: album.files.map { ($0.path, $0) })
+        let order = Dictionary(uniqueKeysWithValues: album.files.enumerated().map { ($0.element.path, $0.offset) })
+
+        return paths
+            .map { group in
+                group.compactMap { filesByPath[$0] }
+                    .sorted { (order[$0.path] ?? Int.max) < (order[$1.path] ?? Int.max) }
+            }
+            .filter { $0.count > 1 }
+    }
+}
+
+struct ComparisonGroupView: View {
+    let title: String
+    let files: [URL]
+    let items: [String: FilePreviewItem]
+    let quality: QualityAnalysis
+    let thumbnailSize: Double
+    let isSelected: (URL) -> Bool
+    let setSelected: (URL, Bool) -> Void
+    let selectAll: () -> Void
+    let deselectAll: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                    Text("\(files.count) file affiancati per confronto")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    selectAll()
+                } label: {
+                    Label("Carica gruppo", systemImage: "checkmark.circle")
+                }
+                Button {
+                    deselectAll()
+                } label: {
+                    Label("Salta gruppo", systemImage: "xmark.circle")
+                }
+            }
+
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(files, id: \.path) { file in
+                        ReviewFileCard(
+                            file: file,
+                            item: items[file.path],
+                            quality: quality.files[file.path],
+                            thumbnailSize: thumbnailSize,
+                            isSelected: isSelected(file),
+                            onSelectionChange: { selected in
+                                setSelected(file, selected)
+                            }
+                        )
+                        .frame(width: thumbnailSize)
+                    }
+                }
+                .padding(.bottom, 4)
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -137,6 +306,7 @@ struct ReviewFileCard: View {
     let file: URL
     let item: FilePreviewItem?
     let quality: FileQualityInfo?
+    let thumbnailSize: Double
     let isSelected: Bool
     let onSelectionChange: (Bool) -> Void
 
@@ -144,7 +314,7 @@ struct ReviewFileCard: View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topLeading) {
                 ThumbnailView(file: file)
-                    .frame(height: 126)
+                    .frame(height: thumbnailHeight)
                     .frame(maxWidth: .infinity)
                     .background(Color(nsColor: .windowBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -181,8 +351,12 @@ struct ReviewFileCard: View {
             FlowTags(flags: quality?.flags ?? [], blurScore: quality?.blurScore)
         }
         .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var thumbnailHeight: Double {
+        max(110, thumbnailSize * 0.68)
     }
 
     private var borderColor: Color {

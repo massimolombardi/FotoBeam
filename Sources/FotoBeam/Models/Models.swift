@@ -1,11 +1,10 @@
 import Foundation
 
-enum ReviewFilter: String, CaseIterable, Identifiable {
+enum ReviewMode: String, CaseIterable, Identifiable {
     case all = "Tutti"
-    case flagged = "Da rivedere"
     case duplicates = "Duplicati"
     case similar = "Simili"
-    case blurry = "Sfocate"
+    case lowQuality = "Qualità bassa"
 
     var id: String { rawValue }
 }
