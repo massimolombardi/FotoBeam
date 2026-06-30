@@ -9,7 +9,8 @@ L'idea è semplice: scegli una cartella principale, FotoBeam trova le sottocarte
 - Scansione di una cartella principale con sottocartelle-album.
 - Rilevamento di file `jpg`, `jpeg`, `png`, `heic`, `heif`, `webp`, `gif`, `mp4`, `mov` e `avi`.
 - Nome album modificabile prima dell'upload.
-- Anteprima dei file che verranno caricati o saltati.
+- Revisione manuale dei file per album prima dell'upload.
+- Segnalazione locale di duplicati esatti, foto molto simili e immagini potenzialmente sfocate.
 - Upload su Google Photos tramite OAuth.
 - Report locale per riprendere un upload interrotto e saltare file già completati.
 - Log e barra di avanzamento durante l'esecuzione.
@@ -55,11 +56,23 @@ Al primo upload l'app apre il browser per completare l'autenticazione Google. Do
 3. Seleziona una cartella che contiene sottocartelle con foto o video.
 4. Controlla gli album trovati.
 5. Modifica i nomi degli album Google, se necessario.
-6. Usa il pulsante `File` per vedere cosa verrà caricato o saltato.
+6. Usa il pulsante `Revisiona` per confrontare i file dell'album.
 7. Deseleziona gli album che non vuoi caricare.
 8. Premi `Avvia upload selezionati`.
 
 Ogni sottocartella con file compatibili diventa un album. Se un upload viene interrotto, il report locale permette all'app di riprendere evitando i file già marcati come completati.
+
+## Revisione Prima Dell'Upload
+
+FotoBeam analizza i file localmente e mostra eventuali avvisi nella schermata `Revisiona`:
+
+- duplicati esatti, rilevati con hash del file;
+- foto molto simili, rilevate con una firma visiva dell'immagine;
+- immagini potenzialmente sfocate, rilevate con un punteggio euristico di nitidezza.
+
+Gli avvisi non modificano mai automaticamente la selezione. Ogni file resta sotto il tuo controllo: puoi caricare tutto, non caricare nulla, oppure scegliere una foto alla volta usando le spunte nella griglia di revisione.
+
+Le scelte sono non distruttive: FotoBeam non elimina, sposta o rinomina file locali. I file non selezionati vengono semplicemente esclusi da quell'upload.
 
 ## File Locali
 
@@ -111,7 +124,24 @@ Se alcuni file vengono saltati, apri la vista `File` dell'album e controlla il m
 ├── Package.swift
 ├── Sources/
 │   └── FotoBeam/
-│       └── main.swift
+│       ├── App/
+│       │   ├── AppModel.swift
+│       │   └── FotoBeamApp.swift
+│       ├── Models/
+│       │   └── Models.swift
+│       ├── Services/
+│       │   ├── AlbumScanner.swift
+│       │   ├── GoogleAuth.swift
+│       │   ├── GooglePhotosClient.swift
+│       │   ├── QualityAnalyzer.swift
+│       │   └── UploadReportStore.swift
+│       ├── Support/
+│       │   ├── AppConstants.swift
+│       │   ├── AppError.swift
+│       │   └── ProjectPaths.swift
+│       └── Views/
+│           ├── ContentView.swift
+│           └── FileReviewView.swift
 ├── credentials.example.json
 ├── report_upload_swift.example.json
 └── README.md
