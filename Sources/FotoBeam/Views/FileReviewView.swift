@@ -27,10 +27,20 @@ struct FileReviewView: View {
 
     private var lowQualityFiles: [URL] {
         album.files.filter { file in
-            if let score = quality.files[file.path]?.blurScore {
-                return score < AppConfig.blurScoreThreshold
-            }
-            return false
+            let issues = quality.files[file.path]?.issues ?? []
+            return issues.contains(.blurry)
+                || issues.contains(.tooDark)
+                || issues.contains(.tooBright)
+                || issues.contains(.lowContrast)
+                || issues.contains(.lowResolution)
+                || issues.contains(.nearlyUniform)
+                || issues.contains(.undecodable)
+        }
+    }
+
+    private var reviewNeededFiles: [URL] {
+        album.files.filter { file in
+            !(quality.files[file.path]?.issues.isEmpty ?? true)
         }
     }
 
@@ -45,17 +55,19 @@ struct FileReviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            qualitySummary
+            qualitySummary(lowQualityCount: lowQualityFiles.count)
             actionBar
             modePicker
 
             ScrollView {
+                let context = reviewContext
                 switch mode {
                 case .all:
-                    fileGrid(files: album.files, emptyTitle: "Nessun file nell'album")
+                    fileGrid(files: album.files, context: context, emptyTitle: "Nessun file nell'album")
                 case .duplicates:
                     groupList(
                         groups: duplicateGroups,
+                        context: context,
                         title: "Gruppo duplicati",
                         emptyTitle: "Nessun duplicato esatto",
                         emptyDescription: "FotoBeam non ha trovato file identici in questo album."
@@ -63,6 +75,7 @@ struct FileReviewView: View {
                 case .similar:
                     groupList(
                         groups: similarGroups,
+                        context: context,
                         title: "Gruppo foto simili",
                         emptyTitle: "Nessuna foto simile",
                         emptyDescription: "FotoBeam non ha trovato scatti abbastanza simili da raggruppare."
@@ -70,8 +83,16 @@ struct FileReviewView: View {
                 case .lowQuality:
                     fileGrid(
                         files: lowQualityFiles,
+                        context: context,
                         emptyTitle: "Nessuna foto di bassa qualità",
-                        emptyDescription: "Non ci sono immagini sotto la soglia di nitidezza."
+                        emptyDescription: "Non ci sono immagini con problemi tecnici evidenti."
+                    )
+                case .reviewNeeded:
+                    fileGrid(
+                        files: reviewNeededFiles,
+                        context: context,
+                        emptyTitle: "Nessuna foto da valutare",
+                        emptyDescription: "Non ci sono immagini con motivi di revisione aggiuntivi."
                     )
                 }
             }
@@ -111,14 +132,16 @@ struct FileReviewView: View {
         }
     }
 
-    private var qualitySummary: some View {
+    private func qualitySummary(lowQualityCount: Int) -> some View {
         HStack(spacing: 10) {
             Label("\(quality.duplicateCount) duplicati", systemImage: "doc.on.doc")
                 .foregroundStyle(quality.duplicateCount > 0 ? .orange : .secondary)
             Label("\(quality.similarCount) simili", systemImage: "rectangle.on.rectangle")
                 .foregroundStyle(quality.similarCount > 0 ? .orange : .secondary)
-            Label("\(quality.blurryCount) qualità bassa", systemImage: "eye.slash")
-                .foregroundStyle(quality.blurryCount > 0 ? .orange : .secondary)
+            Label("\(lowQualityCount) qualità bassa", systemImage: "eye.slash")
+                .foregroundStyle(lowQualityCount > 0 ? .orange : .secondary)
+            Label("\(quality.reviewNeededCount) da valutare", systemImage: "exclamationmark.magnifyingglass")
+                .foregroundStyle(quality.reviewNeededCount > 0 ? .orange : .secondary)
             Spacer()
             Label("Nessuna esclusione automatica", systemImage: "hand.raised")
                 .foregroundStyle(.secondary)
@@ -169,7 +192,7 @@ struct FileReviewView: View {
         .pickerStyle(.segmented)
     }
 
-    private func groupList(groups: [[URL]], title: String, emptyTitle: String, emptyDescription: String) -> some View {
+    private func groupList(groups: [[URL]], context: ReviewContext, title: String, emptyTitle: String, emptyDescription: String) -> some View {
         LazyVStack(alignment: .leading, spacing: 18) {
             if groups.isEmpty {
                 ContentUnavailableView(
@@ -183,7 +206,7 @@ struct FileReviewView: View {
                     ComparisonGroupView(
                         title: "\(title) \(index + 1)",
                         files: files,
-                        items: itemsByPath,
+                        items: context.itemsByPath,
                         quality: quality,
                         thumbnailSize: thumbnailSize,
                         isSelected: { model.isFileSelected($0) },
@@ -197,7 +220,7 @@ struct FileReviewView: View {
         .padding(2)
     }
 
-    private func fileGrid(files: [URL], emptyTitle: String, emptyDescription: String = "Non ci sono elementi da mostrare in questa vista.") -> some View {
+    private func fileGrid(files: [URL], context: ReviewContext, emptyTitle: String, emptyDescription: String = "Non ci sono elementi da mostrare in questa vista.") -> some View {
         Group {
             if files.isEmpty {
                 ContentUnavailableView(
@@ -211,7 +234,7 @@ struct FileReviewView: View {
                     ForEach(files, id: \.path) { file in
                         ReviewFileCard(
                             file: file,
-                            item: itemsByPath[file.path],
+                            item: context.itemsByPath[file.path],
                             quality: quality.files[file.path],
                             thumbnailSize: thumbnailSize,
                             isSelected: model.isFileSelected(file),
@@ -226,8 +249,8 @@ struct FileReviewView: View {
         }
     }
 
-    private var itemsByPath: [String: FilePreviewItem] {
-        Dictionary(uniqueKeysWithValues: items.map { ($0.path, $0) })
+    private var reviewContext: ReviewContext {
+        ReviewContext(items: items)
     }
 
     private func groups(from paths: [[String]]) -> [[URL]] {
@@ -240,6 +263,14 @@ struct FileReviewView: View {
                     .sorted { (order[$0.path] ?? Int.max) < (order[$1.path] ?? Int.max) }
             }
             .filter { $0.count > 1 }
+    }
+}
+
+private struct ReviewContext {
+    let itemsByPath: [String: FilePreviewItem]
+
+    init(items: [FilePreviewItem]) {
+        itemsByPath = Dictionary(uniqueKeysWithValues: items.map { ($0.path, $0) })
     }
 }
 
@@ -313,7 +344,7 @@ struct ReviewFileCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topLeading) {
-                ThumbnailView(file: file)
+                ThumbnailView(file: file, pixelSize: thumbnailPixelSize)
                     .frame(height: thumbnailHeight)
                     .frame(maxWidth: .infinity)
                     .background(Color(nsColor: .windowBackgroundColor))
@@ -348,7 +379,8 @@ struct ReviewFileCard: View {
             }
             .font(.caption)
 
-            FlowTags(flags: quality?.flags ?? [], blurScore: quality?.blurScore)
+            FlowTags(flags: quality?.flags ?? [])
+            IssueTags(issues: quality?.issues ?? [])
         }
         .padding(10)
         .background(Color(nsColor: .textBackgroundColor))
@@ -359,6 +391,10 @@ struct ReviewFileCard: View {
         max(110, thumbnailSize * 0.68)
     }
 
+    private var thumbnailPixelSize: Int {
+        Int((thumbnailSize * 1.5).rounded(.up))
+    }
+
     private var borderColor: Color {
         if !(quality?.flags.isEmpty ?? true) {
             return .orange
@@ -367,24 +403,117 @@ struct ReviewFileCard: View {
     }
 }
 
-struct ThumbnailView: View {
-    let file: URL
+struct IssueTags: View {
+    let issues: [QualityIssue]
 
     var body: some View {
-        if let image = NSImage(contentsOf: file), image.isValid {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-        } else {
-            VStack(spacing: 8) {
-                Image(systemName: isVideo ? "video" : "doc")
-                    .font(.largeTitle)
-                Text(file.pathExtension.uppercased())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        if !issues.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(issues, id: \.rawValue) { issue in
+                    Label(issue.rawValue, systemImage: icon(for: issue))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func icon(for issue: QualityIssue) -> String {
+        switch issue {
+        case .blurry:
+            return "eye.slash"
+        case .tooDark:
+            return "moon"
+        case .tooBright:
+            return "sun.max"
+        case .lowContrast, .nearlyUniform:
+            return "circle.lefthalf.filled"
+        case .lowResolution:
+            return "arrow.down.right.and.arrow.up.left"
+        case .undecodable:
+            return "exclamationmark.triangle"
+        case .crowdedSimilarGroup:
+            return "rectangle.stack"
+        }
+    }
+}
+
+struct ThumbnailView: View {
+    let file: URL
+    let pixelSize: Int
+
+    @State private var image: NSImage?
+    @State private var didFailToLoad = false
+
+    var body: some View {
+        Group {
+            if let image {
+                imageView(image)
+            } else {
+                placeholder
+            }
+        }
+        .task(id: cacheKey) {
+            await loadImage()
+        }
+    }
+
+    private var placeholder: some View {
+        VStack(spacing: 8) {
+            Image(systemName: placeholderIcon)
+                .font(.largeTitle)
+            Text(file.pathExtension.uppercased())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !isVideo && !didFailToLoad {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func imageView(_ image: NSImage) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFit()
+    }
+
+    private func loadImage() async {
+        guard !isVideo else {
+            didFailToLoad = true
+            return
+        }
+
+        if let cached = ThumbnailLoader.shared.cachedImage(for: file, pixelSize: normalizedPixelSize) {
+            image = cached
+            didFailToLoad = false
+            return
+        }
+
+        image = nil
+        didFailToLoad = false
+        if let loaded = await ThumbnailLoader.shared.image(for: file, pixelSize: normalizedPixelSize) {
+            image = loaded
+        } else {
+            didFailToLoad = true
+        }
+    }
+
+    private var normalizedPixelSize: Int {
+        max(160, min(640, Int((Double(pixelSize) / 80.0).rounded(.up) * 80)))
+    }
+
+    private var cacheKey: String {
+        "\(file.path)|\(normalizedPixelSize)"
+    }
+
+    private var placeholderIcon: String {
+        if isVideo {
+            return "video"
+        }
+        return didFailToLoad ? "doc" : "photo"
     }
 
     private var isVideo: Bool {
@@ -394,7 +523,6 @@ struct ThumbnailView: View {
 
 struct FlowTags: View {
     let flags: [QualityFlag]
-    let blurScore: Double?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -414,9 +542,6 @@ struct FlowTags: View {
     }
 
     private func label(for flag: QualityFlag) -> String {
-        if flag == .blurry, let blurScore {
-            return "\(flag.rawValue) \(String(format: "%.1f", blurScore))"
-        }
         return flag.rawValue
     }
 
@@ -426,8 +551,6 @@ struct FlowTags: View {
             return "doc.on.doc"
         case .similar:
             return "rectangle.on.rectangle"
-        case .blurry:
-            return "eye.slash"
         }
     }
 }

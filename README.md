@@ -12,6 +12,7 @@ L'idea è semplice: scegli una cartella principale, FotoBeam trova le sottocarte
 - Revisione manuale dei file per album prima dell'upload.
 - Segnalazione locale di duplicati esatti, foto molto simili e immagini potenzialmente sfocate.
 - Confronto affiancato dei gruppi di foto duplicate o simili.
+- Segnalazione di foto da valutare con motivi espliciti, come molto scura, sovraesposta, bassa risoluzione o gruppo simile numeroso.
 - Dimensione miniature regolabile durante la revisione.
 - Upload su Google Photos tramite OAuth.
 - Report locale per riprendere un upload interrotto e saltare file già completati.
@@ -71,8 +72,11 @@ FotoBeam analizza i file localmente e mostra eventuali avvisi nella schermata `R
 - duplicati esatti, rilevati con hash del file;
 - foto molto simili, rilevate con una firma visiva dell'immagine;
 - immagini potenzialmente sfocate, rilevate con un punteggio euristico di nitidezza.
+- foto da valutare, rilevate con segnali locali spiegabili come luminosità, contrasto, risoluzione, uniformità e numerosità dei gruppi simili.
 
 Le viste `Duplicati` e `Simili` mostrano le foto a gruppi, affiancate orizzontalmente, così puoi confrontarle e scegliere quali caricare. La vista `Qualità bassa` raccoglie invece le immagini sfocate o sotto soglia. Lo slider con le icone foto permette di aumentare o ridurre la dimensione delle miniature.
+
+La vista `Da valutare` non decide cosa è inutile: mostra solo immagini sospette con il motivo della segnalazione, lasciando sempre a te la scelta finale.
 
 Gli avvisi non modificano mai automaticamente la selezione. Ogni file resta sotto il tuo controllo: puoi caricare tutto, non caricare nulla, oppure scegliere una foto alla volta usando le spunte nella griglia di revisione.
 

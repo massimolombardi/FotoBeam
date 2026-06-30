@@ -5,6 +5,7 @@ enum ReviewMode: String, CaseIterable, Identifiable {
     case duplicates = "Duplicati"
     case similar = "Simili"
     case lowQuality = "Qualità bassa"
+    case reviewNeeded = "Da valutare"
 
     var id: String { rawValue }
 }
@@ -12,7 +13,17 @@ enum ReviewMode: String, CaseIterable, Identifiable {
 enum QualityFlag: String, CaseIterable {
     case exactDuplicate = "Duplicato"
     case similar = "Simile"
-    case blurry = "Sfocata"
+}
+
+enum QualityIssue: String, CaseIterable {
+    case blurry = "Probabilmente sfocata"
+    case tooDark = "Molto scura"
+    case tooBright = "Sovraesposta"
+    case lowContrast = "Basso contrasto"
+    case lowResolution = "Bassa risoluzione"
+    case nearlyUniform = "Quasi vuota"
+    case undecodable = "Non decodificabile"
+    case crowdedSimilarGroup = "Raffica o gruppo simile numeroso"
 }
 
 struct FileQualityInfo {
@@ -20,6 +31,10 @@ struct FileQualityInfo {
     var similarGroup: Int?
     var blurScore: Double?
     var perceptualHash: UInt64?
+    var brightness: Double?
+    var contrast: Double?
+    var pixelCount: Int?
+    var issues: [QualityIssue] = []
 
     var flags: [QualityFlag] {
         var result: [QualityFlag] = []
@@ -29,15 +44,20 @@ struct FileQualityInfo {
         if similarGroup != nil {
             result.append(.similar)
         }
-        if let blurScore, blurScore < AppConfig.blurScoreThreshold {
-            result.append(.blurry)
-        }
         return result
     }
 
     var summary: String {
         let values = flags.map(\.rawValue)
-        return values.isEmpty ? "OK" : values.joined(separator: ", ")
+        let issueValues = issues.map(\.rawValue)
+        let allValues = values + issueValues
+        return allValues.isEmpty ? "OK" : allValues.joined(separator: ", ")
+    }
+
+    mutating func addIssue(_ issue: QualityIssue) {
+        if !issues.contains(issue) {
+            issues.append(issue)
+        }
     }
 }
 
@@ -47,7 +67,7 @@ struct QualityAnalysis {
     var similarGroups: [[String]] = []
 
     var flaggedCount: Int {
-        files.values.filter { !$0.flags.isEmpty }.count
+        files.values.filter { !$0.flags.isEmpty || !$0.issues.isEmpty }.count
     }
 
     var duplicateCount: Int {
@@ -59,12 +79,11 @@ struct QualityAnalysis {
     }
 
     var blurryCount: Int {
-        files.values.filter { info in
-            if let score = info.blurScore {
-                return score < AppConfig.blurScoreThreshold
-            }
-            return false
-        }.count
+        files.values.filter { $0.issues.contains(.blurry) }.count
+    }
+
+    var reviewNeededCount: Int {
+        files.values.filter { !$0.issues.isEmpty }.count
     }
 }
 

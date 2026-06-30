@@ -16,12 +16,22 @@ struct QualityAnalyzer: Sendable {
                 exactHashBuckets[hash, default: []].append(file)
             }
 
-            if isImage(file), let image = cgImage(file: file, maxPixelSize: 256) {
-                if let hash = averageHash(image: image) {
-                    info.perceptualHash = hash
-                    imageHashes.append((file, hash))
+            if isImage(file) {
+                info.pixelCount = pixelCount(file: file)
+                if let image = cgImage(file: file, maxPixelSize: 256) {
+                    if let hash = averageHash(image: image) {
+                        info.perceptualHash = hash
+                        imageHashes.append((file, hash))
+                    }
+                    info.blurScore = sharpnessScore(image: image)
+                    if let metrics = imageMetrics(image: image) {
+                        info.brightness = metrics.brightness
+                        info.contrast = metrics.contrast
+                    }
+                    info.issues = issues(for: info)
+                } else {
+                    info.issues = [.undecodable]
                 }
-                info.blurScore = sharpnessScore(image: image)
             }
 
             result.files[file.path] = info
@@ -48,6 +58,9 @@ struct QualityAnalyzer: Sendable {
         for (index, group) in similarGroups.enumerated() {
             for path in group {
                 result.files[path, default: FileQualityInfo()].similarGroup = index
+                if group.count >= AppConfig.largeSimilarGroupThreshold {
+                    result.files[path, default: FileQualityInfo()].addIssue(.crowdedSimilarGroup)
+                }
             }
         }
 
@@ -95,6 +108,18 @@ struct QualityAnalyzer: Sendable {
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options)
     }
 
+    private func pixelCount(file: URL) -> Int? {
+        guard
+            let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int
+        else {
+            return nil
+        }
+        return width * height
+    }
+
     private func averageHash(image: CGImage) -> UInt64? {
         guard let samples = grayscaleSamples(image: image, width: 8, height: 8), samples.count == 64 else {
             return nil
@@ -130,6 +155,45 @@ struct QualityAnalyzer: Sendable {
             return nil
         }
         return total / comparisons
+    }
+
+    private func imageMetrics(image: CGImage) -> (brightness: Double, contrast: Double)? {
+        guard let samples = grayscaleSamples(image: image, width: 32, height: 32), !samples.isEmpty else {
+            return nil
+        }
+
+        let average = samples.reduce(0, +) / Double(samples.count)
+        let variance = samples.reduce(0.0) { partial, value in
+            let delta = value - average
+            return partial + delta * delta
+        } / Double(samples.count)
+
+        return (brightness: average, contrast: sqrt(variance))
+    }
+
+    private func issues(for info: FileQualityInfo) -> [QualityIssue] {
+        var issues: [QualityIssue] = []
+
+        if let score = info.blurScore, score < AppConfig.blurScoreThreshold {
+            issues.append(.blurry)
+        }
+        if let brightness = info.brightness, brightness < AppConfig.darkBrightnessThreshold {
+            issues.append(.tooDark)
+        }
+        if let brightness = info.brightness, brightness > AppConfig.brightBrightnessThreshold {
+            issues.append(.tooBright)
+        }
+        if let contrast = info.contrast, contrast < AppConfig.lowContrastThreshold {
+            issues.append(.lowContrast)
+        }
+        if let contrast = info.contrast, contrast < AppConfig.uniformImageThreshold {
+            issues.append(.nearlyUniform)
+        }
+        if let pixelCount = info.pixelCount, pixelCount < AppConfig.lowResolutionPixelThreshold {
+            issues.append(.lowResolution)
+        }
+
+        return issues
     }
 
     private func grayscaleSamples(image: CGImage, width: Int, height: Int) -> [Double]? {
