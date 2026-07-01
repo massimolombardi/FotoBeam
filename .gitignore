@@ -17,6 +17,7 @@ token*.json
 report_upload*.json
 rename_history*.json
 *.log
+.fotobeam-memory.md
 
 # Generic local secrets
 .env
