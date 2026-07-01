@@ -1,6 +1,8 @@
 import Foundation
 
 struct AlbumScanner {
+    private let dateReader = MediaDateReader()
+
     func scan(folder: URL, report: UploadReport) -> [AlbumRow] {
         guard let albumDirectories = try? FileManager.default.contentsOfDirectory(
             at: folder,
@@ -27,7 +29,7 @@ struct AlbumScanner {
                     originalName: albumName,
                     albumName: albumName,
                     files: files,
-                    dateRange: dateRange(files: files),
+                    dateRange: dateReader.fileDateRange(files: files),
                     isSelected: !completed,
                     isCompleted: completed
                 )
@@ -60,15 +62,4 @@ struct AlbumScanner {
         (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
-    private func dateRange(files: [URL]) -> String {
-        let dates = files.compactMap { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }
-        guard let minDate = dates.min(), let maxDate = dates.max() else {
-            return "N/D"
-        }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd/MM/yyyy"
-        let start = formatter.string(from: minDate)
-        let end = formatter.string(from: maxDate)
-        return start == end ? start : "\(start) - \(end)"
-    }
 }

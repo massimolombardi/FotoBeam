@@ -93,7 +93,7 @@ struct AlbumRow: Identifiable {
     let originalName: String
     var albumName: String
     var files: [URL]
-    let dateRange: String
+    var dateRange: String
     var isSelected = true
     var isCompleted = false
 }
@@ -116,6 +116,36 @@ enum RenameDateSource: String, Codable {
     case fileCreationDate = "Data creazione file"
     case fileModificationDate = "Data modifica file"
     case unavailable = "Data non trovata"
+}
+
+enum AlbumDateIssue: String, CaseIterable {
+    case differentYear = "Anno diverso dalla maggioranza"
+    case weakDate = "Data debole"
+    case unavailable = "Data non trovata"
+}
+
+struct AlbumDateItem: Identifiable {
+    var id: String { file.path }
+    let file: URL
+    let date: Date?
+    let dateSource: RenameDateSource
+    let year: Int?
+    let issues: [AlbumDateIssue]
+}
+
+struct AlbumDateSummary {
+    let fileCount: Int
+    let dateRange: String
+    let years: [Int]
+    let majorityYear: Int?
+    let suspiciousCount: Int
+    let weakDateCount: Int
+    let unavailableCount: Int
+}
+
+struct AlbumDateAnalysis {
+    let items: [AlbumDateItem]
+    let summary: AlbumDateSummary
 }
 
 enum RenamePlanStatus: String, Codable {
@@ -154,6 +184,21 @@ struct RenameHistoryItem: Codable {
         case oldPath = "old_path"
         case newPath = "new_path"
         case dateSource = "date_source"
+    }
+}
+
+struct MoveHistory: Codable {
+    var movedAt: Date
+    var items: [MoveHistoryItem]
+}
+
+struct MoveHistoryItem: Codable {
+    let oldPath: String
+    let newPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case oldPath = "old_path"
+        case newPath = "new_path"
     }
 }
 

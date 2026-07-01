@@ -162,6 +162,7 @@ Questi file sono generati o usati localmente e sono esclusi da git:
 - `token_swift.json`: token OAuth salvato dopo l'autenticazione.
 - `report_upload_swift.json`: stato degli upload, album, file già processati e percorsi locali.
 - `rename_history.json`: storico delle rinomine applicate, con vecchi e nuovi percorsi locali.
+- `move_history.json`: storico degli spostamenti locali applicati dalla vista date.
 - `.fotobeam-memory.md`: memoria locale di lavoro per continuare lo sviluppo senza perdere contesto.
 - `.build/`: artefatti di build Swift Package Manager.
 
@@ -210,6 +211,8 @@ Se alcuni file vengono saltati, apri la vista `Revisiona` dell'album e controlla
 Se vuoi rifare l'autorizzazione Google da zero, elimina `token_swift.json`.
 
 Se hai applicato una rinomina e vuoi ricostruire cosa è successo, controlla `rename_history.json`.
+
+Se hai spostato file tra cartelle album dalla vista date, controlla `move_history.json`.
 
 ## Struttura Del Progetto
 

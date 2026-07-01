@@ -64,13 +64,21 @@ struct ContentView: View {
                 .width(min: 220, ideal: 300)
 
                 TableColumn("Dettagli") { album in
-                    Button {
-                        model.showFilePreview(for: album)
-                    } label: {
-                        Label("Revisiona", systemImage: "rectangle.stack.badge.person.crop")
+                    HStack(spacing: 8) {
+                        Button {
+                            model.showDateDetails(for: album)
+                        } label: {
+                            Label("Date", systemImage: "calendar")
+                        }
+
+                        Button {
+                            model.showFilePreview(for: album)
+                        } label: {
+                            Label("Revisiona", systemImage: "rectangle.stack.badge.person.crop")
+                        }
                     }
                 }
-                .width(130)
+                .width(220)
             }
             .overlay {
                 if model.albums.isEmpty {
@@ -83,6 +91,10 @@ struct ContentView: View {
             }
             .sheet(item: $model.previewAlbum) { album in
                 FileReviewView(album: album)
+                    .environmentObject(model)
+            }
+            .sheet(item: $model.dateDetailAlbum) { album in
+                AlbumDateDetailView(album: album)
                     .environmentObject(model)
             }
 

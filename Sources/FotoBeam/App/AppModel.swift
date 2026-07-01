@@ -12,6 +12,7 @@ final class AppModel: ObservableObject {
     @Published var isScanning = false
     @Published var isWorking = false
     @Published var previewAlbum: AlbumRow?
+    @Published var dateDetailAlbum: AlbumRow?
     @Published var fileSelections: [String: Bool] = [:]
     @Published var qualityAnalyses: [UUID: QualityAnalysis] = [:]
     @Published var renameBeforeUpload: [UUID: Bool] = [:]
@@ -19,10 +20,17 @@ final class AppModel: ObservableObject {
     private let scanner = AlbumScanner()
     private let qualityAnalyzer = QualityAnalyzer()
     private let renamePlanner = RenamePlanner()
+    private let dateAnalyzer = AlbumDateAnalyzer()
+    private let fileMover = AlbumFileMover()
+    private let dateReader = MediaDateReader()
     private var report = UploadReportStore.load()
 
     func showFilePreview(for album: AlbumRow) {
         previewAlbum = album
+    }
+
+    func showDateDetails(for album: AlbumRow) {
+        dateDetailAlbum = album
     }
 
     func setAlbumSelected(_ album: AlbumRow, selected: Bool) {
@@ -44,6 +52,10 @@ final class AppModel: ObservableObject {
 
     func qualityAnalysis(for album: AlbumRow) -> QualityAnalysis? {
         qualityAnalyses[album.id]
+    }
+
+    func albumDateAnalysis(for album: AlbumRow) -> AlbumDateAnalysis {
+        dateAnalyzer.analyze(files: currentAlbum(for: album).files)
     }
 
     func isFileSelected(_ file: URL) -> Bool {
@@ -99,6 +111,7 @@ final class AppModel: ObservableObject {
                 }
                 return file
             }
+            albums[albumIndex].dateRange = dateReader.fileDateRange(files: albums[albumIndex].files)
             qualityAnalyses[album.id] = qualityAnalyzer.analyze(files: albums[albumIndex].files)
         }
 
@@ -113,6 +126,63 @@ final class AppModel: ObservableObject {
         }
 
         log("\(history.count) file rinominati. Storico salvato in \(AppConfig.renameHistoryFileName).")
+    }
+
+    func moveFiles(_ files: [URL], from album: AlbumRow, to directory: URL) throws -> Int {
+        let current = currentAlbum(for: album)
+        let sourcePaths = Set(files.map(\.path))
+        guard !sourcePaths.isEmpty else {
+            return 0
+        }
+
+        let history = try fileMover.move(files: files, to: directory)
+        guard !history.isEmpty else {
+            log("Nessun file spostato.")
+            return 0
+        }
+
+        let movedFiles = history.map { URL(fileURLWithPath: $0.newPath) }
+
+        if let sourceIndex = albums.firstIndex(where: { $0.id == current.id }) {
+            albums[sourceIndex].files.removeAll { sourcePaths.contains($0.path) }
+            albums[sourceIndex].dateRange = dateReader.fileDateRange(files: albums[sourceIndex].files)
+            qualityAnalyses[current.id] = qualityAnalyzer.analyze(files: albums[sourceIndex].files)
+        }
+
+        if let destinationIndex = albums.firstIndex(where: { sameFileURL($0.path, directory) }) {
+            albums[destinationIndex].files.append(contentsOf: movedFiles)
+            albums[destinationIndex].files.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+            albums[destinationIndex].dateRange = dateReader.fileDateRange(files: albums[destinationIndex].files)
+            qualityAnalyses[albums[destinationIndex].id] = qualityAnalyzer.analyze(files: albums[destinationIndex].files)
+        } else if !sameFileURL(directory, selectedFolder ?? directory) {
+            let newAlbum = AlbumRow(
+                path: directory,
+                originalName: directory.lastPathComponent,
+                albumName: directory.lastPathComponent,
+                files: movedFiles.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending },
+                dateRange: dateReader.fileDateRange(files: movedFiles)
+            )
+            albums.append(newAlbum)
+            albums.sort { $0.originalName.localizedStandardCompare($1.originalName) == .orderedAscending }
+            qualityAnalyses[newAlbum.id] = qualityAnalyzer.analyze(files: newAlbum.files)
+            renameBeforeUpload[newAlbum.id] = false
+        }
+
+        for item in history {
+            let selected = fileSelections[item.oldPath] ?? true
+            fileSelections.removeValue(forKey: item.oldPath)
+            fileSelections[item.newPath] = selected
+        }
+
+        if let previewAlbum, previewAlbum.id == current.id {
+            self.previewAlbum = albums.first { $0.id == current.id }
+        }
+        if let dateDetailAlbum, dateDetailAlbum.id == current.id {
+            self.dateDetailAlbum = albums.first { $0.id == current.id }
+        }
+
+        log("\(history.count) file spostati in '\(directory.lastPathComponent)'. Storico salvato in \(AppConfig.moveHistoryFileName).")
+        return history.count
     }
 
     func filePreviewItems(for album: AlbumRow) -> [FilePreviewItem] {
@@ -307,4 +377,9 @@ final class AppModel: ObservableObject {
         formatter.dateFormat = "HH:mm:ss"
         logs.append("[\(formatter.string(from: Date()))] \(message)")
     }
+
+    private func sameFileURL(_ first: URL, _ second: URL) -> Bool {
+        first.standardizedFileURL.path == second.standardizedFileURL.path
+    }
+
 }
