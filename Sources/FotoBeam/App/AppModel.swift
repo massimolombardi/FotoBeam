@@ -25,6 +25,23 @@ final class AppModel: ObservableObject {
         previewAlbum = album
     }
 
+    func setAlbumSelected(_ album: AlbumRow, selected: Bool) {
+        guard let index = albums.firstIndex(where: { $0.id == album.id }) else {
+            return
+        }
+        albums[index].isSelected = selected
+    }
+
+    func setAlbumName(_ album: AlbumRow, name: String) {
+        guard let index = albums.firstIndex(where: { $0.id == album.id }) else {
+            return
+        }
+        albums[index].albumName = name
+        if let previewAlbum, previewAlbum.id == album.id {
+            self.previewAlbum = albums[index]
+        }
+    }
+
     func qualityAnalysis(for album: AlbumRow) -> QualityAnalysis? {
         qualityAnalyses[album.id]
     }

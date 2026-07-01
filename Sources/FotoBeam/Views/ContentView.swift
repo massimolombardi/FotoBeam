@@ -20,27 +20,33 @@ struct ContentView: View {
                 Spacer()
             }
 
-            Table($model.albums) {
-                TableColumn("✓") { $album in
-                    Toggle("", isOn: $album.isSelected)
+            Table(model.albums) {
+                TableColumn("✓") { album in
+                    Toggle("", isOn: Binding(
+                        get: { model.currentAlbum(for: album).isSelected },
+                        set: { model.setAlbumSelected(album, selected: $0) }
+                    ))
                         .labelsHidden()
                 }
                 .width(44)
 
-                TableColumn("Cartella originale") { $album in
+                TableColumn("Cartella originale") { album in
                     Text(album.originalName)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 .width(min: 180, ideal: 260)
 
-                TableColumn("Nome album Google") { $album in
-                    TextField("Nome album", text: $album.albumName)
-                        .textFieldStyle(.roundedBorder)
+                TableColumn("Nome album Google") { album in
+                    TextField("Nome album", text: Binding(
+                        get: { model.currentAlbum(for: album).albumName },
+                        set: { model.setAlbumName(album, name: $0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
                 }
                 .width(min: 240, ideal: 360)
 
-                TableColumn("File e date") { $album in
+                TableColumn("File e date") { album in
                     HStack {
                         Text("\(album.files.count) file")
                         Text(album.dateRange)
@@ -57,7 +63,7 @@ struct ContentView: View {
                 }
                 .width(min: 220, ideal: 300)
 
-                TableColumn("Dettagli") { $album in
+                TableColumn("Dettagli") { album in
                     Button {
                         model.showFilePreview(for: album)
                     } label: {
