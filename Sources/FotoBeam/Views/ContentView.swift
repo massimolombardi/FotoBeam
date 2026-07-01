@@ -46,13 +46,13 @@ struct ContentView: View {
                 }
                 .width(min: 240, ideal: 360)
 
-                TableColumn("File e date") { album in
+                TableColumn("File") { album in
                     HStack {
                         Text("\(album.files.count) file")
                         Text(album.dateRange)
                             .foregroundStyle(.secondary)
                         if let quality = model.qualityAnalysis(for: album), quality.flaggedCount > 0 {
-                            Text("\(quality.flaggedCount) da rivedere")
+                            Text("\(quality.flaggedCount) qualità")
                                 .foregroundStyle(.orange)
                         }
                         if album.isCompleted {
@@ -63,12 +63,12 @@ struct ContentView: View {
                 }
                 .width(min: 220, ideal: 300)
 
-                TableColumn("Dettagli") { album in
+                TableColumn("Azioni") { album in
                     HStack(spacing: 8) {
                         Button {
                             model.showDateDetails(for: album)
                         } label: {
-                            Label("Date", systemImage: "calendar")
+                            Label("Date e cartelle", systemImage: "calendar")
                         }
 
                         Button {

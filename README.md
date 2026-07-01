@@ -101,11 +101,12 @@ Se la finestra dell'app non riceve la tastiera quando viene avviata da terminale
 3. Seleziona una cartella che contiene sottocartelle con foto o video.
 4. Controlla gli album trovati.
 5. Modifica i nomi degli album Google, se necessario.
-6. Usa il pulsante `Revisiona` per confrontare i file dell'album.
-7. Scegli quali file caricare e quali saltare.
-8. Se vuoi, abilita `Rinomina prima dell'upload`.
-9. Deseleziona gli album che non vuoi caricare.
-10. Premi `Avvia upload selezionati`.
+6. Usa `Date e cartelle` se vuoi controllare anni, date metadata e spostare file finiti nell'album sbagliato.
+7. Usa `Revisiona` per confrontare duplicati, foto simili e qualità.
+8. Scegli quali file caricare e quali saltare.
+9. Se vuoi, abilita `Rinomina prima dell'upload`.
+10. Deseleziona gli album che non vuoi caricare.
+11. Premi `Avvia upload selezionati`.
 
 Ogni sottocartella con file compatibili diventa un album. Se un upload viene interrotto, il report locale permette all'app di riprendere evitando i file già marcati come completati.
 
@@ -127,6 +128,8 @@ Gli avvisi non modificano mai automaticamente la selezione. Ogni file resta sott
 Le scelte sono non distruttive: FotoBeam non elimina, sposta o rinomina file locali. I file non selezionati vengono semplicemente esclusi da quell'upload.
 
 Eccezione esplicita: la funzione di rinomina modifica davvero i nomi dei file locali solo quando premi `Applica rinomina` oppure quando abiliti il flag `Rinomina prima dell'upload`.
+
+La vista `Date e cartelle` è separata da `Revisiona`: serve a vedere le date rilevate, individuare anni fuori posto e spostare manualmente file in un'altra cartella album. Lo spostamento modifica davvero i file locali e viene salvato in `move_history.json`.
 
 ## Rinomina File
 

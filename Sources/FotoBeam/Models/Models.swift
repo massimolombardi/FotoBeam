@@ -120,7 +120,7 @@ enum RenameDateSource: String, Codable {
 
 enum AlbumDateIssue: String, CaseIterable {
     case differentYear = "Anno diverso dalla maggioranza"
-    case weakDate = "Data debole"
+    case weakDate = "Solo data file"
     case unavailable = "Data non trovata"
 }
 

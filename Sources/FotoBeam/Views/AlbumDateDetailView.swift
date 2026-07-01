@@ -88,13 +88,13 @@ struct AlbumDateDetailView: View {
 
     private var summaryBar: some View {
         let summary = analysis.summary
-        return HStack(spacing: 10) {
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
             DateSummaryPill(title: "File", value: "\(summary.fileCount)", icon: "photo.on.rectangle")
             DateSummaryPill(title: "Intervallo", value: summary.dateRange, icon: "calendar")
             DateSummaryPill(title: "Anni", value: yearsText(summary.years), icon: "number")
-            DateSummaryPill(title: "Anno principale", value: summary.majorityYear.map(String.init) ?? "N/D", icon: "target")
+            DateSummaryPill(title: "Anno prevalente", value: summary.majorityYear.map(String.init) ?? "N/D", icon: "target")
             DateSummaryPill(title: "Da controllare", value: "\(summary.suspiciousCount)", icon: "exclamationmark.triangle")
-            DateSummaryPill(title: "Date deboli", value: "\(summary.weakDateCount)", icon: "clock.badge.questionmark")
+            DateSummaryPill(title: "Solo data file", value: "\(summary.weakDateCount)", icon: "clock.badge.questionmark")
         }
     }
 
@@ -155,21 +155,21 @@ struct AlbumDateDetailView: View {
                 Text("\(selectedFiles.count) selezionati")
                     .foregroundStyle(.secondary)
 
-                TextField("Nuova cartella album", text: $destinationFolderName)
+                TextField("Nuova cartella", text: $destinationFolderName)
                     .textFieldStyle(.roundedBorder)
                     .frame(minWidth: 220)
 
                 Button {
                     moveToNamedFolder()
                 } label: {
-                    Label("Sposta in nuova cartella", systemImage: "folder.badge.plus")
+                    Label("Crea e sposta", systemImage: "folder.badge.plus")
                 }
                 .disabled(selectedFiles.isEmpty || destinationFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 Button {
                     chooseExistingFolderAndMove()
                 } label: {
-                    Label("Sposta in...", systemImage: "folder")
+                    Label("Scegli cartella", systemImage: "folder")
                 }
                 .disabled(selectedFiles.isEmpty)
 
@@ -251,10 +251,10 @@ struct AlbumDateDetailView: View {
 }
 
 enum DateDetailFilter: String, CaseIterable, Identifiable {
-    case all = "Tutti"
+    case all = "Tutto"
     case suspicious = "Da controllare"
     case differentYear = "Anno diverso"
-    case weakDate = "Data debole"
+    case weakDate = "Solo data file"
     case unavailable = "Senza data"
 
     var id: String { rawValue }
@@ -276,8 +276,11 @@ struct DateSummaryPill: View {
                 Text(value)
                     .font(.callout.weight(.medium))
                     .lineLimit(1)
+                    .truncationMode(.middle)
             }
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background(Color(nsColor: .controlBackgroundColor))
