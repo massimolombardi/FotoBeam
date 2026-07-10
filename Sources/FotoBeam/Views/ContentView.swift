@@ -49,6 +49,8 @@ struct ContentView: View {
                 TableColumn("File") { album in
                     HStack {
                         Text("\(album.files.count) file")
+                        Text(album.folderSizeText)
+                            .foregroundStyle(.secondary)
                         Text(album.dateRange)
                             .foregroundStyle(.secondary)
                         if let quality = model.qualityAnalysis(for: album), quality.flaggedCount > 0 {

@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     private let dateAnalyzer = AlbumDateAnalyzer()
     private let fileMover = AlbumFileMover()
     private let dateReader = MediaDateReader()
+    private let folderSizeCalculator = FolderSizeCalculator()
     private var report = UploadReportStore.load()
 
     func showFilePreview(for album: AlbumRow) {
@@ -112,6 +113,7 @@ final class AppModel: ObservableObject {
                 return file
             }
             albums[albumIndex].dateRange = dateReader.fileDateRange(files: albums[albumIndex].files)
+            albums[albumIndex].folderSizeBytes = folderSizeCalculator.sizeBytes(for: albums[albumIndex].path)
             qualityAnalyses[album.id] = qualityAnalyzer.analyze(files: albums[albumIndex].files)
         }
 
@@ -146,6 +148,7 @@ final class AppModel: ObservableObject {
         if let sourceIndex = albums.firstIndex(where: { $0.id == current.id }) {
             albums[sourceIndex].files.removeAll { sourcePaths.contains($0.path) }
             albums[sourceIndex].dateRange = dateReader.fileDateRange(files: albums[sourceIndex].files)
+            albums[sourceIndex].folderSizeBytes = folderSizeCalculator.sizeBytes(for: albums[sourceIndex].path)
             qualityAnalyses[current.id] = qualityAnalyzer.analyze(files: albums[sourceIndex].files)
         }
 
@@ -153,6 +156,7 @@ final class AppModel: ObservableObject {
             albums[destinationIndex].files.append(contentsOf: movedFiles)
             albums[destinationIndex].files.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
             albums[destinationIndex].dateRange = dateReader.fileDateRange(files: albums[destinationIndex].files)
+            albums[destinationIndex].folderSizeBytes = folderSizeCalculator.sizeBytes(for: albums[destinationIndex].path)
             qualityAnalyses[albums[destinationIndex].id] = qualityAnalyzer.analyze(files: albums[destinationIndex].files)
         } else if !sameFileURL(directory, selectedFolder ?? directory) {
             let newAlbum = AlbumRow(
@@ -160,7 +164,8 @@ final class AppModel: ObservableObject {
                 originalName: directory.lastPathComponent,
                 albumName: directory.lastPathComponent,
                 files: movedFiles.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending },
-                dateRange: dateReader.fileDateRange(files: movedFiles)
+                dateRange: dateReader.fileDateRange(files: movedFiles),
+                folderSizeBytes: folderSizeCalculator.sizeBytes(for: directory)
             )
             albums.append(newAlbum)
             albums.sort { $0.originalName.localizedStandardCompare($1.originalName) == .orderedAscending }

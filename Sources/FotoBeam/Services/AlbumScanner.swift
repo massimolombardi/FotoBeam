@@ -2,6 +2,7 @@ import Foundation
 
 struct AlbumScanner {
     private let dateReader = MediaDateReader()
+    private let folderSizeCalculator = FolderSizeCalculator()
 
     func scan(folder: URL, report: UploadReport) -> [AlbumRow] {
         guard let albumDirectories = try? FileManager.default.contentsOfDirectory(
@@ -30,6 +31,7 @@ struct AlbumScanner {
                     albumName: albumName,
                     files: files,
                     dateRange: dateReader.fileDateRange(files: files),
+                    folderSizeBytes: folderSizeCalculator.sizeBytes(for: directory),
                     isSelected: !completed,
                     isCompleted: completed
                 )

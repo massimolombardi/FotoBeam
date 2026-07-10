@@ -94,8 +94,23 @@ struct AlbumRow: Identifiable {
     var albumName: String
     var files: [URL]
     var dateRange: String
+    var folderSizeBytes: Int64
     var isSelected = true
     var isCompleted = false
+
+    var folderSizeText: String {
+        let gigabytes = Double(folderSizeBytes) / 1_000_000_000
+        if folderSizeBytes > 0 && gigabytes < 0.01 {
+            return "< 0,01 GB"
+        }
+
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        let value = formatter.string(from: NSNumber(value: gigabytes)) ?? String(format: "%.2f", gigabytes)
+        return "\(value) GB"
+    }
 }
 
 struct FilePreviewItem: Identifiable {
