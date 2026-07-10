@@ -13,6 +13,10 @@ final class AppModel: ObservableObject {
     @Published var isWorking = false
     @Published var previewAlbum: AlbumRow?
     @Published var dateDetailAlbum: AlbumRow?
+    @Published var showingGoogleAlbums = false
+    @Published var googleAlbums: [GooglePhotoAlbum] = []
+    @Published var isLoadingGoogleAlbums = false
+    @Published var hasLoadedGoogleAlbums = false
     @Published var fileSelections: [String: Bool] = [:]
     @Published var qualityAnalyses: [UUID: QualityAnalysis] = [:]
     @Published var renameBeforeUpload: [UUID: Bool] = [:]
@@ -32,6 +36,18 @@ final class AppModel: ObservableObject {
 
     func showDateDetails(for album: AlbumRow) {
         dateDetailAlbum = album
+    }
+
+    func googleAlbumExists(for album: AlbumRow) -> Bool {
+        let title = album.albumName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? album.originalName : album.albumName
+        return googleAlbumTitles.contains(title.normalizedAlbumTitle)
+    }
+
+    func googleAlbumStatus(for album: AlbumRow) -> GoogleAlbumStatus {
+        guard hasLoadedGoogleAlbums else {
+            return .notChecked
+        }
+        return googleAlbumExists(for: album) ? .present : .missing
     }
 
     func setAlbumSelected(_ album: AlbumRow, selected: Bool) {
@@ -377,6 +393,33 @@ final class AppModel: ObservableObject {
         isWorking = false
     }
 
+    func loadGoogleAlbums() async {
+        guard !isLoadingGoogleAlbums else {
+            return
+        }
+
+        isLoadingGoogleAlbums = true
+        status = "Lettura album Google Photos..."
+        log("Lettura titoli album Google Photos creati da FotoBeam...")
+
+        do {
+            let client = try await GooglePhotosClient()
+            googleAlbums = try await client.listAlbums()
+            hasLoadedGoogleAlbums = true
+            showingGoogleAlbums = true
+            status = "\(googleAlbums.count) album Google Photos trovati."
+            log(status)
+            if googleAlbums.isEmpty {
+                log("Google restituisce solo album creati da questa app con lo scope readonly.appcreateddata.")
+            }
+        } catch {
+            status = "Errore lettura album Google Photos"
+            log("Errore lettura album Google Photos: \(error.localizedDescription)")
+        }
+
+        isLoadingGoogleAlbums = false
+    }
+
     private func log(_ message: String) {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
@@ -387,4 +430,13 @@ final class AppModel: ObservableObject {
         first.standardizedFileURL.path == second.standardizedFileURL.path
     }
 
+    private var googleAlbumTitles: Set<String> {
+        Set(googleAlbums.map { $0.title.normalizedAlbumTitle })
+    }
+}
+
+private extension String {
+    var normalizedAlbumTitle: String {
+        trimmingCharacters(in: .whitespacesAndNewlines).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
 }

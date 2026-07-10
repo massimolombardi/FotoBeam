@@ -12,6 +12,18 @@ struct ContentView: View {
                     Label("Scegli cartella principale", systemImage: "folder")
                 }
 
+                Button {
+                    Task { await model.loadGoogleAlbums() }
+                } label: {
+                    Label("Album Google", systemImage: "photo.stack")
+                }
+                .disabled(model.isLoadingGoogleAlbums)
+
+                if model.isLoadingGoogleAlbums {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
                 Text(model.selectedFolder?.path ?? "Nessuna cartella selezionata")
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -65,6 +77,11 @@ struct ContentView: View {
                 }
                 .width(min: 220, ideal: 300)
 
+                TableColumn("Google Photos") { album in
+                    GoogleAlbumStatusView(status: model.googleAlbumStatus(for: album))
+                }
+                .width(130)
+
                 TableColumn("Azioni") { album in
                     HStack(spacing: 8) {
                         Button {
@@ -97,6 +114,10 @@ struct ContentView: View {
             }
             .sheet(item: $model.dateDetailAlbum) { album in
                 AlbumDateDetailView(album: album)
+                    .environmentObject(model)
+            }
+            .sheet(isPresented: $model.showingGoogleAlbums) {
+                GoogleAlbumsView()
                     .environmentObject(model)
             }
 
@@ -143,5 +164,48 @@ struct ContentView: View {
             }
         }
         .padding(14)
+    }
+}
+
+private struct GoogleAlbumStatusView: View {
+    let status: GoogleAlbumStatus
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .foregroundStyle(color)
+            .lineLimit(1)
+    }
+
+    private var title: String {
+        switch status {
+        case .notChecked:
+            return "Non verificato"
+        case .present:
+            return "Presente"
+        case .missing:
+            return "Non trovato"
+        }
+    }
+
+    private var systemImage: String {
+        switch status {
+        case .notChecked:
+            return "questionmark.circle"
+        case .present:
+            return "checkmark.circle.fill"
+        case .missing:
+            return "xmark.circle"
+        }
+    }
+
+    private var color: Color {
+        switch status {
+        case .notChecked:
+            return .secondary
+        case .present:
+            return .green
+        case .missing:
+            return .orange
+        }
     }
 }

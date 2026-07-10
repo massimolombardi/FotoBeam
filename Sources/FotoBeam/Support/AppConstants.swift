@@ -6,7 +6,11 @@ enum AppConfig {
     static let tokenFileName = "token_swift.json"
     static let renameHistoryFileName = "rename_history.json"
     static let moveHistoryFileName = "move_history.json"
-    static let googleScope = "https://www.googleapis.com/auth/photoslibrary.appendonly"
+    static let googleScopes = [
+        "https://www.googleapis.com/auth/photoslibrary.appendonly",
+        "https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata"
+    ]
+    static let googleScope = googleScopes.joined(separator: " ")
     static let similarPhotoDistanceThreshold = 8
     static let blurScoreThreshold = 7.0
     static let lowResolutionPixelThreshold = 1_000_000

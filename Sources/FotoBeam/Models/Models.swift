@@ -240,16 +240,39 @@ struct OAuthToken: Codable {
     var refreshToken: String?
     var tokenType: String
     var expiresAt: Date
+    var scopes: [String]
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case tokenType = "token_type"
         case expiresAt = "expires_at"
+        case scopes
     }
 
     var isValid: Bool {
         expiresAt.timeIntervalSinceNow > 60
+    }
+
+    var hasRequiredScopes: Bool {
+        Set(scopes).isSuperset(of: AppConfig.googleScopes)
+    }
+
+    init(accessToken: String, refreshToken: String?, tokenType: String, expiresAt: Date, scopes: [String]) {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.tokenType = tokenType
+        self.expiresAt = expiresAt
+        self.scopes = scopes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        accessToken = try container.decode(String.self, forKey: .accessToken)
+        refreshToken = try container.decodeIfPresent(String.self, forKey: .refreshToken)
+        tokenType = try container.decode(String.self, forKey: .tokenType)
+        expiresAt = try container.decode(Date.self, forKey: .expiresAt)
+        scopes = try container.decodeIfPresent([String].self, forKey: .scopes) ?? []
     }
 }
 
@@ -258,13 +281,28 @@ struct TokenResponse: Decodable {
     let refreshToken: String?
     let tokenType: String
     let expiresIn: TimeInterval
+    let scope: String?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case tokenType = "token_type"
         case expiresIn = "expires_in"
+        case scope
     }
+}
+
+struct GooglePhotoAlbum: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let mediaItemsCount: Int?
+    let productURL: String?
+}
+
+enum GoogleAlbumStatus {
+    case notChecked
+    case present
+    case missing
 }
 
 struct UploadReport: Codable {

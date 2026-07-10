@@ -17,6 +17,7 @@ L'idea è semplice: scegli una cartella principale, FotoBeam trova le sottocarte
 - Anteprima e rinomina esplicita dei file selezionati con formato data/ora dello scatto.
 - Upload su Google Photos tramite OAuth.
 - Report locale per riprendere un upload interrotto e saltare file già completati.
+- Lettura dei titoli degli album Google Photos creati da FotoBeam, così puoi evitare ricaricamenti inutili.
 - Log e barra di avanzamento durante l'esecuzione.
 
 ## Requisiti
@@ -24,7 +25,7 @@ L'idea è semplice: scegli una cartella principale, FotoBeam trova le sottocarte
 - macOS 14 o superiore.
 - Swift 6 o superiore.
 - Un progetto Google Cloud con OAuth configurato per app desktop.
-- Accesso a Google Photos con il permesso `photoslibrary.appendonly`.
+- Accesso a Google Photos con i permessi `photoslibrary.appendonly` e `photoslibrary.readonly.appcreateddata`.
 
 ## Configurazione Google
 
@@ -66,15 +67,16 @@ Il file `credentials.json` è locale e non deve essere committato.
 
 ### Scope OAuth Usato
 
-FotoBeam richiede questo scope:
+FotoBeam richiede questi scope:
 
 ```text
 https://www.googleapis.com/auth/photoslibrary.appendonly
+https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata
 ```
 
-Questo scope dà accesso in scrittura per caricare byte, creare media item, creare album e aggiungere contenuti. È intenzionalmente più ristretto degli scope completi: l'app deve solo creare nuovi album e caricare nuovi media, non leggere tutta la libreria Google Photos.
+Il primo scope dà accesso in scrittura per caricare byte, creare media item, creare album e aggiungere contenuti. Il secondo permette di leggere i metadata degli album creati dall'app, incluso il titolo, senza dare accesso completo alla libreria Google Photos.
 
-Nota: dal 2025 Google ha modificato/rimosso alcuni scope storici della Library API. Per FotoBeam non usare scope ampi come `photoslibrary` se non strettamente necessario.
+Nota: dal 2025 Google ha modificato/rimosso alcuni scope storici della Library API. Con gli scope attuali FotoBeam può vedere solo gli album creati da FotoBeam, non tutti gli album personali già presenti in Google Photos.
 
 ### Primo Login
 
@@ -101,12 +103,13 @@ Se la finestra dell'app non riceve la tastiera quando viene avviata da terminale
 3. Seleziona una cartella che contiene sottocartelle con foto o video.
 4. Controlla gli album trovati.
 5. Modifica i nomi degli album Google, se necessario.
-6. Usa `Date e cartelle` se vuoi controllare anni, date metadata e spostare file finiti nell'album sbagliato.
-7. Usa `Revisiona` per confrontare duplicati, foto simili e qualità.
-8. Scegli quali file caricare e quali saltare.
-9. Se vuoi, abilita `Rinomina prima dell'upload`.
-10. Deseleziona gli album che non vuoi caricare.
-11. Premi `Avvia upload selezionati`.
+6. Usa `Album Google` per vedere i titoli degli album già creati da FotoBeam su Google Photos.
+7. Usa `Date e cartelle` se vuoi controllare anni, date metadata e spostare file finiti nell'album sbagliato.
+8. Usa `Revisiona` per confrontare duplicati, foto simili e qualità.
+9. Scegli quali file caricare e quali saltare.
+10. Se vuoi, abilita `Rinomina prima dell'upload`.
+11. Deseleziona gli album che non vuoi caricare.
+12. Premi `Avvia upload selezionati`.
 
 Ogni sottocartella con file compatibili diventa un album. Se un upload viene interrotto, il report locale permette all'app di riprendere evitando i file già marcati come completati.
 

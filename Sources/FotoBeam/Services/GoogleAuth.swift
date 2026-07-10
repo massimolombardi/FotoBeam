@@ -21,10 +21,10 @@ final class GoogleAuth {
     }
 
     func ensureToken() async throws {
-        if let token, token.isValid {
+        if let token, token.isValid, token.hasRequiredScopes {
             return
         }
-        if let refreshToken = token?.refreshToken {
+        if let refreshToken = token?.refreshToken, token?.hasRequiredScopes == true {
             self.token = try await refresh(refreshToken: refreshToken)
             Self.saveToken(self.token)
             return
@@ -96,7 +96,8 @@ final class GoogleAuth {
             accessToken: decoded.accessToken,
             refreshToken: decoded.refreshToken,
             tokenType: decoded.tokenType,
-            expiresAt: Date().addingTimeInterval(decoded.expiresIn)
+            expiresAt: Date().addingTimeInterval(decoded.expiresIn),
+            scopes: decoded.scope?.split(separator: " ").map(String.init) ?? AppConfig.googleScopes
         )
     }
 
