@@ -14,6 +14,8 @@ L'idea è semplice: scegli una cartella principale, FotoBeam trova le sottocarte
 - Confronto affiancato dei gruppi di foto duplicate o simili.
 - Segnalazione di foto da valutare con motivi espliciti, come molto scura, sovraesposta, bassa risoluzione o gruppo simile numeroso.
 - Dimensione miniature regolabile durante la revisione.
+- Eliminazione manuale dalla revisione con spostamento nel Cestino macOS.
+- Correzione manuale della data per foto e video con metadata mancanti o errati.
 - Anteprima e rinomina esplicita dei file selezionati con formato data/ora dello scatto.
 - Upload su Google Photos tramite OAuth.
 - Report locale per riprendere un upload interrotto e saltare file già completati.
@@ -128,11 +130,15 @@ La vista `Da valutare` non decide cosa è inutile: mostra solo immagini sospette
 
 Gli avvisi non modificano mai automaticamente la selezione. Ogni file resta sotto il tuo controllo: puoi caricare tutto, non caricare nulla, oppure scegliere una foto alla volta usando le spunte nella griglia di revisione.
 
-Le scelte sono non distruttive: FotoBeam non elimina, sposta o rinomina file locali. I file non selezionati vengono semplicemente esclusi da quell'upload.
+Le scelte di upload sono non distruttive: i file non selezionati vengono semplicemente esclusi da quell'upload.
+
+Eccezione esplicita: il pulsante `Elimina selezionate` nella vista `Revisiona` sposta nel Cestino macOS i file spuntati e li rimuove dall'album locale mostrato dall'app.
 
 Eccezione esplicita: la funzione di rinomina modifica davvero i nomi dei file locali solo quando premi `Applica rinomina` oppure quando abiliti il flag `Rinomina prima dell'upload`.
 
-La vista `Date e cartelle` è separata da `Revisiona`: serve a vedere le date rilevate, individuare anni fuori posto e spostare manualmente file in un'altra cartella album. Lo spostamento modifica davvero i file locali e viene salvato in `move_history.json`.
+La vista `Date e cartelle` è separata da `Revisiona`: serve a vedere le date rilevate, individuare anni fuori posto, correggere manualmente la data di file con metadata mancanti e spostare manualmente file in un'altra cartella album. Lo spostamento modifica davvero i file locali e viene salvato in `move_history.json`.
+
+La correzione manuale della data salva un override locale in `date_overrides.json` e aggiorna data creazione/modifica del file su macOS. FotoBeam usa questa data prima di EXIF, metadata immagine, nome file e date filesystem. Non riscrive il metadata interno del container video MP4/MOV.
 
 ## Rinomina File
 
@@ -169,6 +175,7 @@ Questi file sono generati o usati localmente e sono esclusi da git:
 - `report_upload_swift.json`: stato degli upload, album, file già processati e percorsi locali.
 - `rename_history.json`: storico delle rinomine applicate, con vecchi e nuovi percorsi locali.
 - `move_history.json`: storico degli spostamenti locali applicati dalla vista date.
+- `date_overrides.json`: date manuali applicate a file con metadata mancanti o errati.
 - `.fotobeam-memory.md`: memoria locale di lavoro per continuare lo sviluppo senza perdere contesto.
 - `.build/`: artefatti di build Swift Package Manager.
 

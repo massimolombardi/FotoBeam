@@ -17,6 +17,7 @@ token*.json
 report_upload*.json
 rename_history*.json
 move_history*.json
+date_overrides*.json
 *.log
 .fotobeam-memory.md
 

@@ -6,6 +6,7 @@ enum AppConfig {
     static let tokenFileName = "token_swift.json"
     static let renameHistoryFileName = "rename_history.json"
     static let moveHistoryFileName = "move_history.json"
+    static let dateOverrideFileName = "date_overrides.json"
     static let googleScopes = [
         "https://www.googleapis.com/auth/photoslibrary.appendonly",
         "https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata"

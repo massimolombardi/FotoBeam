@@ -125,6 +125,7 @@ struct FilePreviewItem: Identifiable {
 }
 
 enum RenameDateSource: String, Codable {
+    case manualOverride = "Data manuale"
     case exifDateTimeOriginal = "EXIF DateTimeOriginal"
     case imageMetadata = "Metadata immagine"
     case fileName = "Nome file"

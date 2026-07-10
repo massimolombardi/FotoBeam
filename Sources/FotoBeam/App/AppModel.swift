@@ -90,7 +90,7 @@ final class AppModel: ObservableObject {
     }
 
     func shouldRenameBeforeUpload(_ album: AlbumRow) -> Bool {
-        renameBeforeUpload[album.id] ?? false
+        renameBeforeUpload[album.id] ?? true
     }
 
     func setRenameBeforeUpload(_ album: AlbumRow, enabled: Bool) {
@@ -103,6 +103,10 @@ final class AppModel: ObservableObject {
         return album.files.filter { file in
             isFileSelected(file) && albumReport?.files[file.path]?.status != "SUCCESS"
         }
+    }
+
+    func selectedReviewFiles(for album: AlbumRow) -> [URL] {
+        currentAlbum(for: album).files.filter { isFileSelected($0) }
     }
 
     func currentAlbum(for album: AlbumRow) -> AlbumRow {
@@ -186,7 +190,7 @@ final class AppModel: ObservableObject {
             albums.append(newAlbum)
             albums.sort { $0.originalName.localizedStandardCompare($1.originalName) == .orderedAscending }
             qualityAnalyses[newAlbum.id] = qualityAnalyzer.analyze(files: newAlbum.files)
-            renameBeforeUpload[newAlbum.id] = false
+            renameBeforeUpload[newAlbum.id] = true
         }
 
         for item in history {
@@ -204,6 +208,82 @@ final class AppModel: ObservableObject {
 
         log("\(history.count) file spostati in '\(directory.lastPathComponent)'. Storico salvato in \(AppConfig.moveHistoryFileName).")
         return history.count
+    }
+
+    func applyDateOverride(_ date: Date, to files: [URL], in album: AlbumRow) throws -> Int {
+        let current = currentAlbum(for: album)
+        let existingFiles = files.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !existingFiles.isEmpty else {
+            return 0
+        }
+
+        try DateOverrideStore.set(date: date, for: existingFiles)
+
+        if let albumIndex = albums.firstIndex(where: { $0.id == current.id }) {
+            albums[albumIndex].dateRange = dateReader.fileDateRange(files: albums[albumIndex].files)
+        }
+
+        if let previewAlbum, previewAlbum.id == current.id {
+            self.previewAlbum = albums.first { $0.id == current.id }
+        }
+        if let dateDetailAlbum, dateDetailAlbum.id == current.id {
+            self.dateDetailAlbum = albums.first { $0.id == current.id }
+        }
+
+        log("Data manuale applicata a \(existingFiles.count) file nell'album '\(current.albumName)'.")
+        return existingFiles.count
+    }
+
+    func trashSelectedFiles(in album: AlbumRow) throws -> Int {
+        let current = currentAlbum(for: album)
+        let selectedFiles = selectedReviewFiles(for: current)
+        guard !selectedFiles.isEmpty else {
+            return 0
+        }
+
+        var trashedFiles: [URL] = []
+        var failedFiles: [String] = []
+
+        for file in selectedFiles {
+            do {
+                var resultingURL: NSURL?
+                try FileManager.default.trashItem(at: file, resultingItemURL: &resultingURL)
+                trashedFiles.append(file)
+            } catch {
+                failedFiles.append("\(file.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        if !trashedFiles.isEmpty {
+            let trashedPaths = Set(trashedFiles.map(\.path))
+            if let albumIndex = albums.firstIndex(where: { $0.id == current.id }) {
+                albums[albumIndex].files.removeAll { trashedPaths.contains($0.path) }
+                albums[albumIndex].dateRange = dateReader.fileDateRange(files: albums[albumIndex].files)
+                albums[albumIndex].folderSizeBytes = folderSizeCalculator.sizeBytes(for: albums[albumIndex].path)
+                qualityAnalyses[current.id] = qualityAnalyzer.analyze(files: albums[albumIndex].files)
+            }
+
+            for file in trashedFiles {
+                fileSelections.removeValue(forKey: file.path)
+            }
+
+            if let previewAlbum, previewAlbum.id == current.id {
+                self.previewAlbum = albums.first { $0.id == current.id }
+            }
+            if let dateDetailAlbum, dateDetailAlbum.id == current.id {
+                self.dateDetailAlbum = albums.first { $0.id == current.id }
+            }
+
+            log("\(trashedFiles.count) file spostati nel Cestino dall'album '\(current.albumName)'.")
+        }
+
+        if !failedFiles.isEmpty {
+            let details = failedFiles.prefix(3).joined(separator: "; ")
+            let suffix = failedFiles.count > 3 ? "..." : ""
+            throw AppError.fileSystem("Impossibile cestinare \(failedFiles.count) file. \(details)\(suffix)")
+        }
+
+        return trashedFiles.count
     }
 
     func filePreviewItems(for album: AlbumRow) -> [FilePreviewItem] {
@@ -276,7 +356,7 @@ final class AppModel: ObservableObject {
                 self.fileSelections = Dictionary(uniqueKeysWithValues: scanned.flatMap { album in
                     album.files.map { ($0.path, true) }
                 })
-                self.renameBeforeUpload = Dictionary(uniqueKeysWithValues: scanned.map { ($0.id, false) })
+                self.renameBeforeUpload = Dictionary(uniqueKeysWithValues: scanned.map { ($0.id, true) })
                 self.qualityAnalyses = analyses
                 self.isScanning = false
                 self.isWorking = false

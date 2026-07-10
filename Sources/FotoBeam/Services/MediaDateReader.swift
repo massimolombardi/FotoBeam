@@ -3,6 +3,9 @@ import ImageIO
 
 struct MediaDateReader {
     func captureDate(for file: URL) -> (date: Date?, source: RenameDateSource) {
+        if let overrideDate = DateOverrideStore.date(for: file) {
+            return (overrideDate, .manualOverride)
+        }
         if let imageDate = imageCaptureDate(for: file) {
             return imageDate
         }

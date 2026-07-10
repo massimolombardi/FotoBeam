@@ -11,6 +11,8 @@ struct FileReviewView: View {
     @State private var renamePlan: [RenamePlanItem] = []
     @State private var isShowingRenamePreview = false
     @State private var renameError: String?
+    @State private var deleteError: String?
+    @State private var isConfirmingDelete = false
 
     private var currentAlbum: AlbumRow {
         model.currentAlbum(for: album)
@@ -26,6 +28,10 @@ struct FileReviewView: View {
 
     private var skippedCount: Int {
         items.count - uploadCount
+    }
+
+    private var selectedReviewFileCount: Int {
+        model.selectedReviewFiles(for: currentAlbum).count
     }
 
     private var quality: QualityAnalysis {
@@ -112,6 +118,11 @@ struct FileReviewView: View {
                         .foregroundStyle(.red)
                         .lineLimit(1)
                 }
+                if let deleteError {
+                    Text(deleteError)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
                 Button("Chiudi") {
                     dismiss()
                 }
@@ -130,6 +141,14 @@ struct FileReviewView: View {
                     applyRenamePlan()
                 }
             )
+        }
+        .alert("Spostare nel Cestino?", isPresented: $isConfirmingDelete) {
+            Button("Annulla", role: .cancel) {}
+            Button("Sposta nel Cestino", role: .destructive) {
+                trashSelectedFiles()
+            }
+        } message: {
+            Text("I \(selectedReviewFileCount) file spuntati verranno rimossi dall'album locale e spostati nel Cestino di macOS.")
         }
     }
 
@@ -185,6 +204,14 @@ struct FileReviewView: View {
             } label: {
                 Label("Non caricare nessuna", systemImage: "xmark.circle")
             }
+
+            Button(role: .destructive) {
+                isConfirmingDelete = true
+            } label: {
+                Label("Elimina selezionate", systemImage: "trash")
+            }
+            .disabled(selectedReviewFileCount == 0)
+            .help("Sposta nel Cestino i file spuntati in questa revisione.")
 
             Button {
                 NSWorkspace.shared.open(currentAlbum.path)
@@ -315,6 +342,15 @@ struct FileReviewView: View {
             isShowingRenamePreview = false
         } catch {
             renameError = error.localizedDescription
+        }
+    }
+
+    private func trashSelectedFiles() {
+        do {
+            _ = try model.trashSelectedFiles(in: currentAlbum)
+            deleteError = nil
+        } catch {
+            deleteError = error.localizedDescription
         }
     }
 }

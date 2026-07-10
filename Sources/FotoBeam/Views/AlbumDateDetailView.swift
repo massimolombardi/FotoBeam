@@ -11,6 +11,7 @@ struct AlbumDateDetailView: View {
     @State private var filter: DateDetailFilter = .all
     @State private var sortAscending = true
     @State private var destinationFolderName = ""
+    @State private var overrideDate = Date()
     @State private var message = ""
     @State private var errorMessage = ""
 
@@ -54,6 +55,7 @@ struct AlbumDateDetailView: View {
             summaryBar
             controls
             fileList
+            metadataEditBar
             moveBar
         }
         .padding(16)
@@ -191,6 +193,32 @@ struct AlbumDateDetailView: View {
         }
     }
 
+    private var metadataEditBar: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Text("\(selectedFiles.count) selezionati")
+                    .foregroundStyle(.secondary)
+
+                DatePicker("Data corretta", selection: $overrideDate, displayedComponents: [.date, .hourAndMinute])
+                    .labelsHidden()
+
+                Button {
+                    applyDateOverride()
+                } label: {
+                    Label("Applica data", systemImage: "calendar.badge.clock")
+                }
+                .disabled(selectedFiles.isEmpty)
+                .help("Salva una data manuale per FotoBeam e aggiorna creazione/modifica file su macOS.")
+
+                Spacer()
+
+                Text("Usata per rinomina e upload")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private func toggleSelection(_ file: URL) {
         if selectedPaths.contains(file.path) {
             selectedPaths.remove(file.path)
@@ -233,6 +261,17 @@ struct AlbumDateDetailView: View {
         } catch {
             message = ""
             errorMessage = "Spostamento non riuscito: \(error.localizedDescription)"
+        }
+    }
+
+    private func applyDateOverride() {
+        do {
+            let count = try model.applyDateOverride(overrideDate, to: selectedFiles, in: currentAlbum)
+            errorMessage = ""
+            message = count == 0 ? "Nessuna data applicata." : "Data manuale applicata a \(count) file."
+        } catch {
+            message = ""
+            errorMessage = "Modifica data non riuscita: \(error.localizedDescription)"
         }
     }
 
@@ -353,6 +392,8 @@ struct AlbumDateRow: View {
 
     private func dateSourceColor(_ source: RenameDateSource) -> Color {
         switch source {
+        case .manualOverride:
+            return .green
         case .exifDateTimeOriginal, .imageMetadata, .fileName:
             return .secondary
         case .fileCreationDate, .fileModificationDate:
